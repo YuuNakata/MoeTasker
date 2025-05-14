@@ -66,6 +66,7 @@ export default async function handler(req, res) {
   try {
     if (text.startsWith("/start") || text.startsWith("/help")) {
       const helpText = MoeHandler.getHelpMessage(userFirstName);
+      console.log(helpText);
       await sendMessage(chatId, helpText, "HTML");
     }
     // --- Nuevos Comandos de MoeTasker ---
