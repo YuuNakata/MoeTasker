@@ -92,7 +92,7 @@ export default async function handler(req, res) {
           const initialMsgId = initialMsgResponse && initialMsgResponse.ok ? (await initialMsgResponse.json()).result.message_id : null;
           
           const diceResponse = await sendDice(chatId);
-          const diceMsgId = diceResponse ? diceResponse.result.message_id : null;
+          const diceMsgId = diceResponse && diceResponse ? (await diceResponse.json()).result.message_id : null;
 
           await delay(3500); // Esperar animación del dado
 
