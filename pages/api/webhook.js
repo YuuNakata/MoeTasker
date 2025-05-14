@@ -18,47 +18,57 @@ export default async function handler(req, res) {
   }
   
   // Validar que el body y message existen
-  if (!req.body || !req.body.message) {
-    console.warn("Webhook: Solicitud inválida o sin cuerpo de mensaje.");
-    return res.status(400).send("Bad Request: Missing message body");
+  const update = req.body; // El objeto update completo de Telegram
+
+  // Extraer el objeto 'message' o el relevante para el update
+  let messageObject = update.message || 
+                      update.edited_message || 
+                      update.channel_post || 
+                      update.edited_channel_post;
+  
+
+  // Para callback_query, el 'message' está anidado de forma diferente
+  let callbackQueryData = null;
+  let userFromCallback = null;
+  if (update.callback_query) {
+    messageObject = update.callback_query.message; // El mensaje al que estaba adjunto el botón
+    callbackQueryData = update.callback_query.data;
+    userFromCallback = update.callback_query.from;
+    console.log("Webhook: Es un callback_query. Data:", callbackQueryData);
+    // Aquí manejarías la lógica de los botones inline y responderías con answerCallbackQuery
+    // await bot.telegram.answerCallbackQuery(update.callback_query.id); // Ejemplo con Telegraf/Aiogram
+    // Con tu fetch manual, necesitarías llamar al método answerCallbackQuery de la API
+    // Por ahora, simplemente respondemos OK para este ejemplo
+    return res.status(200).send("OK");
   }
-  const message = req.body.message || req.body.edited_message || req.body.channel_post || req.body.edited_channel_post;
-  if (message && message.new_chat_members && message.new_chat_members.length > 0) {
-    const chatId = message.chat.id;
-    for (const member of message.new_chat_members) {
-      if (!member.is_bot) { // No dar bienvenida a otros bots
-        const memberName = member.first_name || "nuevo miembro";
-        // Usar mention helper si lo tienes en htmlEscaper.js
-        // import { mention } from '@/lib/utils/htmlEscaper';
-        // const userMention = mention(memberName, member.id);
-        // O construirlo manualmente:
-        const userMention = `<a href="tg://user?id=${member.id}">${escapeHTML(memberName)}</a>`;
-        
-        const { phrase, kaomoji } = MoeHandler.getRandomFunPhrase();
-        const welcomeMessage = 
-          `¡Bienvenid@ al equipo, ${userMention}! 🎉 ${escapeHTML(kaomoji)}\n\n` +
-          `Soy MoeTasker, tu asistente para la gestión de tareas del proyecto. ` +
-          `Puedes usar ${code('/help')} para ver lo que puedo hacer.\n\n` +
-          `<i>"${phrase}"</i>`;
-        await sendMessage(chatId, welcomeMessage, "HTML");
-      }
-    }
-    // Importante: Si un mensaje de "nuevo miembro" también contiene texto de comando,
-    // podríamos querer detener el procesamiento aquí o permitir que continúe.
-    // Por ahora, si es un mensaje de nuevo miembro, respondemos y terminamos.
+
+  if (!messageObject) {
+    console.warn("Webhook: No se pudo extraer un objeto de mensaje procesable del update.", update);
+    return res.status(200).send("OK"); // Aceptar el update para evitar reintentos
+  }
+
+  // Manejo de nuevos miembros
+  if (messageObject.new_chat_members && messageObject.new_chat_members.length > 0) {
+    const chatId = messageObject.chat.id;
+    // ... (tu lógica de bienvenida igual, usando messageObject.new_chat_members y messageObject.chat.id) ...
     return res.status(200).send("OK"); 
   }
-  if (!message || !message.chat || !message.from) {
-    console.warn("Webhook: Mensaje o campos esenciales faltantes.");
-    return res.status(200).send("OK"); // Responder OK a Telegram para evitar reintentos
+
+  const chatId = messageObject.chat.id;
+  let text = messageObject.text || "";
+  const userId = messageObject.from.id;
+  const userFirstName = messageObject.from.first_name || "Usuario";
+
+  // Limpiar el @NombreDeTuBot de los comandos en grupos
+  if (messageObject.chat.type === "group" || messageObject.chat.type === "supergroup") {
+    const botUsername = process.env.BOT_USERNAME; // Necesitarás añadir BOT_USERNAME a tus .env
+    if (botUsername && text.includes(`@${botUsername}`)) {
+      text = text.replace(`@${botUsername}`, "").trim();
+    }
   }
 
-  const chatId = message.chat.id;
-  const text = message.text || "";
-  const userId = message.from.id;
-  const userFirstName = message.from.first_name || "Usuario";
-  console.log(`Webhook: ChatID=${chatId}, UserID=${userId}, Text="${text}"`);
-
+  console.log(`Webhook Procesado: ChatID=${chatId}, UserID=${userId}, Text="${text}"`);
+  
   try {
     if (text.startsWith("/start") || text.startsWith("/help")) {
       const helpText = MoeHandler.getHelpMessage(userFirstName);
