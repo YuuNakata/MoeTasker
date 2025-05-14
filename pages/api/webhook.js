@@ -62,7 +62,6 @@ export default async function handler(req, res) {
   try {
     if (text.startsWith("/start") || text.startsWith("/help")) {
       const helpText = MoeHandler.getHelpMessage(userFirstName);
-      console.log(helpText);
       await sendMessage(chatId, helpText, "HTML");
     }
     // --- Nuevos Comandos de MoeTasker ---
@@ -103,6 +102,17 @@ export default async function handler(req, res) {
     }
     else if (text.startsWith("/tareas")) {
       const summary = await TaskManager.getPendingTasksSummary();
+      await sendMessage(chatId, summary, "HTML");
+    }
+    else if (text.startsWith("/clear_tasks")) {
+      const summary = ``;
+      if (TaskManager.clear_tasks()){
+        summary = `Todas las tareas eliminadas.` + escapeHTML(MoeHandler.getRandomFunPhrase().kaomoji);
+      }
+      else{
+        summary = `Ocurrió un error al eliminar las tareas` + escapeHTML(MoeHandler.getRandomFunPhrase().kaomoji);
+      }
+
       await sendMessage(chatId, summary, "HTML");
     }
     // Para /completar ID y /completar_ID
