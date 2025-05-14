@@ -10,12 +10,9 @@
         "use": "@vercel/python"
       }
     ],
-    "routes": [
-      
-      { "src": "/api/telegram", "dest": "/api/telegram.py" },
-      { "src": "/api/cron/daily_reminder", "dest": "/api/cron/daily_reminder.py" },
-      { "src": "/api/cron/random_message", "dest": "/api/cron/random_message.py" }
-    ],
+    "rewrites": [
+    { "source": "/(.*)", "destination": "/api/telegram.py" }
+      ],
     "crons": [
       {
         "path": "/api/cron/daily_reminder",

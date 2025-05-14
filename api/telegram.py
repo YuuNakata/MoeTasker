@@ -2,156 +2,131 @@
 import asyncio
 import json
 import os
+from typing import Any
 from dotenv import load_dotenv
+from fastapi import FastAPI, Request, HTTPException, status
+from fastapi.responses import JSONResponse
 
-# Cargar .env ANTES de importar módulos de la app que puedan usar os.getenv al cargar
+# Cargar .env
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 dotenv_path = os.path.join(project_root, '.env')
-if os.path.exists(dotenv_path):
-    load_dotenv(dotenv_path)
-else:
-    print(f"Advertencia: Archivo .env no encontrado en {dotenv_path}")
+if os.path.exists(dotenv_path): load_dotenv(dotenv_path)
 
-
-# Ahora importa la instancia del bot y dispatcher
-from app.bot_instance import bot, dp # bot y dispatcher
+from app.bot_instance import bot, dp # bot y dispatcher de Aiogram
 from aiogram import types
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler # Para manejar requests
 
 # --- Configuración del Webhook (Idealmente se hace una vez) ---
-WEBHOOK_HOST = os.getenv("WEBHOOK_BASE_URL") # ej: https://your-app.vercel.app
-WEBHOOK_PATH = os.getenv("WEBHOOK_PATH", "/api/telegram") # ej: /api/telegram
+WEBHOOK_HOST = os.getenv("WEBHOOK_BASE_URL")
+WEBHOOK_PATH = os.getenv("WEBHOOK_PATH", "/api/telegram") # FastAPI servirá en este path relativo
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
-# Variables para asegurar que el webhook se configure solo una vez por "vida" del worker
-# Esto es complicado en serverless, es mejor un script de deploy o un endpoint GET de setup.
-# _webhook_set = False
+# Inicializar FastAPI app
+# Vercel sirve la app FastAPI desde este archivo si `vercel.json` lo dirige aquí.
+# El "rewrites" del artículo es para que todo vaya a un `index.py` que define `app = FastAPI()`.
+# Si nuestro archivo se llama `telegram.py`, Vercel podría buscar `app` aquí.
+app = FastAPI(
+    title="Telegram Bot Webhook Handler",
+    description="Handles Telegram updates via webhook using FastAPI and Aiogram.",
+)
 
-async def set_webhook_on_startup():
-    # global _webhook_set
-    # if _webhook_set:
-    #     return
-    if os.getenv('VERCEL_ENV') == 'production' or WEBHOOK_HOST: # Solo si estamos en Vercel o WEBHOOK_HOST está definido
-        print(f"Intentando configurar webhook en: {WEBHOOK_URL}")
+# Guardar el estado del webhook (problemático en serverless, mejor un script de setup)
+# _webhook_is_set = False
+
+@app.on_event("startup")
+async def on_startup():
+    # global _webhook_is_set
+    # if not _webhook_is_set and (os.getenv('VERCEL_ENV') == 'production' or WEBHOOK_HOST):
+    # Este es un buen lugar para configurar el webhook SIEMPRE Y CUANDO
+    # el startup de FastAPI se ejecute de forma fiable una vez por instancia "caliente"
+    # o si usas un script de deploy para llamar a un endpoint de setup.
+    # Para Vercel, es más seguro configurar el webhook externamente o con un endpoint GET.
+    if os.getenv('VERCEL_ENV') == 'production' or WEBHOOK_HOST:
+        print(f"FastAPI Startup: Intentando configurar webhook en: {WEBHOOK_URL}")
         try:
             await bot.set_webhook(
                 url=WEBHOOK_URL,
-                allowed_updates=dp.resolve_used_update_types() # Solo los updates que el dispatcher usa
+                allowed_updates=dp.resolve_used_update_types(),
+                # secret_token=os.getenv("TELEGRAM_WEBHOOK_SECRET") # Opcional
             )
-            # _webhook_set = True
-            print("Webhook configurado exitosamente.")
+            # _webhook_is_set = True
+            print(f"FastAPI Startup: Webhook configurado en {WEBHOOK_URL}")
         except Exception as e:
-            print(f"Error al configurar webhook: {e}")
+            print(f"FastAPI Startup: Error al configurar webhook: {e}")
     else:
-        print("Saltando configuración de webhook (no en Vercel o WEBHOOK_HOST no definido).")
+        print("FastAPI Startup: Saltando configuración de webhook (no en Vercel o WEBHOOK_HOST no definido).")
 
-# --- Vercel Handler ---
-# Vercel espera una función llamada 'handler' o un framework compatible.
-# Para Aiogram, necesitamos procesar la request.
-# Para un entorno serverless como Vercel, necesitas llamar a `Dispatcher.feed_webhook_update`
-# y luego podrías necesitar manejar el ciclo de vida del bot de forma diferente.
+@app.on_event("shutdown")
+async def on_shutdown():
+    # Opcional: Limpiar recursos del bot, como cerrar la sesión
+    # No es estrictamente necesario para webhooks si cada request es independiente.
+    print("FastAPI Shutdown: Limpiando sesión del bot...")
+    await bot.session.close()
+    print("FastAPI Shutdown: Sesión del bot cerrada.")
 
-# Este es un ejemplo de cómo se podría manejar la request de Vercel
-# La documentación de Aiogram para despliegue en serverless es importante.
 
-# Una forma común es tener un script de inicio que registre el webhook y luego
-# el handler solo procese las actualizaciones.
-
-# El `handler` que Vercel llamará:
-async def vercel_handler(event, context): # Vercel puede usar este formato para funciones Python
+# El endpoint que Telegram llamará (debe coincidir con WEBHOOK_PATH y `vercel.json` routes)
+@app.post(WEBHOOK_PATH) # ej: si WEBHOOK_PATH es /api/telegram, FastAPI lo toma desde la raíz de la app
+async def telegram_webhook_endpoint(request: Request):
     """
-    Handler para Vercel. `event` contiene el payload del webhook de Telegram.
-    `context` es el contexto de la lambda de AWS (Vercel usa AWS Lambda bajo el capó).
+    Recibe las actualizaciones de Telegram.
+    FastAPI parseará el JSON automáticamente.
     """
-    # print(f"Evento recibido por Vercel: {event}")
-    # print(f"Contexto de Vercel: {context}")
-
-    # Configurar webhook al inicio de la primera invocación (si no se hizo antes)
-    # Podría ser mejor hacerlo en un paso de "post-deploy" o un endpoint de setup
-    # await set_webhook_on_startup() # Comentado para evitar múltiples llamadas si el worker se reutiliza
-
     try:
-        # Aiogram 3.x: El dispatcher maneja la actualización directamente.
-        # El 'event' de Vercel (si viene de API Gateway) podría tener el body en `event['body']`
-        # y podría ser un string JSON que necesita ser parseado.
+        # Obtener el cuerpo como dict
+        update_data = await request.json()
+        # print(f"Datos recibidos en webhook: {update_data}")
+
+        # Crear objeto Update de Aiogram y procesarlo
+        # El dispatcher de Aiogram puede manejar esto
+        # SimpleRequestHandler es para aiohttp, necesitamos el equivalente para FastAPI o manual
         
-        telegram_update_data = {}
-        if isinstance(event.get('body'), str):
-            try:
-                telegram_update_data = json.loads(event['body'])
-            except json.JSONDecodeError:
-                print("Error: No se pudo decodificar el cuerpo JSON de la solicitud.")
-                return {'statusCode': 400, 'body': 'Bad Request: Invalid JSON'}
-        elif isinstance(event.get('body'), dict): # Si Vercel ya lo parseó
-             telegram_update_data = event['body']
-        else:
-            print(f"Advertencia: El cuerpo de la solicitud no es un string JSON ni un dict. Tipo: {type(event.get('body'))}")
-            # Si es una prueba directa desde Telegram, puede que no tenga 'body' y el evento sea el update
-            if 'update_id' in event: # Asumir que 'event' es el update directo
-                 telegram_update_data = event
-            else:
-                 return {'statusCode': 400, 'body': 'Bad Request: Cuerpo no reconocido'}
+        # Para Aiogram 3.x, y FastAPI, puedes pasar el bot y el dispatcher
+        # y usar `feed_webhook_update` si manejas la respuesta HTTP correctamente.
+        # O, como antes, construir el objeto Update y usar feed_update.
 
-
-        if not telegram_update_data:
-            print("Error: No hay datos de actualización de Telegram para procesar.")
-            return {'statusCode': 400, 'body': 'Bad Request: No update data'}
-
-        # Crear objeto Update y procesarlo
-        update = types.Update(**telegram_update_data)
-        # print(f"Update de Telegram procesado: {update}")
-
-        # Procesar el update con el dispatcher
-        # dp.feed_update tomará el objeto Update directamente
-        # Para un webhook, se usa feed_webhook_update para manejar la respuesta a Telegram también
-        # El resultado de feed_webhook_update debe ser devuelto como respuesta HTTP.
-        # Aiogram 3.x simplifica esto.
+        update = types.Update(**update_data)
         
-        # El método recomendado para serverless es que el dispatcher devuelva
-        # la respuesta que se debe enviar de vuelta a Telegram.
-        # await dp.feed_webhook_update(bot, update) # Esto es para Aiogram < 3.1
-        # En Aiogram 3.1+, el dispatcher puede manejar directamente requests HTTP si se configura como servidor web.
-        # Para funciones serverless puras, el enfoque es más manual o usando helpers de la librería.
-
-        # La forma más directa con Aiogram 3.x para un webhook es:
-        # await Dispatcher. इसको handle_webhook_update(update, bot=bot, **data_for_middlewares)
-        # Pero esto es si tienes el control del servidor HTTP.
-        # Con Vercel, te dan la request.
-
-        # Aquí simplemente pasamos el update al dispatcher.
-        # La respuesta a Telegram (un 200 OK vacío) es manejada por Vercel si la función retorna exitosamente.
+        # `feed_webhook_update` está diseñado para cuando tienes control total del servidor HTTP.
+        # Para FastAPI, pasar el update y que el dispatcher lo maneje internamente es más simple
+        # y luego FastAPI devuelve el 200 OK.
+        # El resultado de `feed_webhook_update` es una instancia de `web.Response` (aiohttp)
+        # o similar, que FastAPI no maneja directamente.
+        
+        # Opción más simple:
         await dp.feed_update(bot=bot, update=update)
         
-        return {
-            'statusCode': 200,
-            'body': '' # Telegram espera un 200 OK vacío o un JSON con ciertos métodos
-        }
+        # Telegram espera un 200 OK, puede ser vacío o con ciertos métodos.
+        # FastAPI por defecto devuelve 200 OK si no hay error y no se especifica otra cosa.
+        return JSONResponse(content={}, status_code=status.HTTP_200_OK)
 
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON payload")
     except Exception as e:
-        print(f"Error al procesar el update de Telegram: {e}")
+        print(f"Error procesando el webhook: {e}")
         import traceback
         traceback.print_exc()
-        return {
-            'statusCode': 500, # Error interno del servidor
-            'body': 'Internal Server Error'
-        }
+        # No devuelvas el detalle del error a Telegram por seguridad, solo un 500.
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
-# --- Script de configuración de Webhook (para ejecutar una vez) ---
-async def main_set_webhook():
-    """Función para configurar el webhook manualmente si es necesario."""
-    await set_webhook_on_startup()
-    await bot.session.close() # Cerrar la sesión del bot después de configurar
+# Opcional: Un endpoint GET para verificar que la app está viva o para configurar el webhook
+@app.get(WEBHOOK_PATH + "/setup") # ej: /api/telegram/setup
+async def setup_webhook_endpoint():
+    if os.getenv('VERCEL_ENV') == 'production' or WEBHOOK_HOST:
+        try:
+            await bot.set_webhook(url=WEBHOOK_URL, allowed_updates=dp.resolve_used_update_types())
+            return {"status": "success", "message": f"Webhook set to {WEBHOOK_URL}"}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "skipped", "message": "Webhook setup skipped (not in prod or no webhook host)."}
 
-if __name__ == "__main__":
-    # Este bloque se puede usar para configurar el webhook manualmente desde la línea de comandos
-    # (ej: python -m api.telegram set_webhook)
-    # O para pruebas locales con polling (requeriría más código aquí).
-    # if len(sys.argv) > 1 and sys.argv[1] == "set_webhook":
-    #    asyncio.run(main_set_webhook())
-    #    print("Operación de webhook completada.")
-    # else:
-    #    print("Para configurar el webhook, ejecuta: python -m api.telegram set_webhook")
-    #    print("Este archivo es principalmente para el handler de Vercel.")
-    pass
+@app.get("/") # Un endpoint raíz para pruebas, como en el artículo
+async def root_index():
+    return {"message": "Hello from FastAPI Bot App! Webhook is at " + WEBHOOK_PATH}
 
-# Renombrar `vercel_handler` a `handler` para que Vercel lo recoja por defecto si el archivo se llama telegram.py
-handler = vercel_handler
+# Si este archivo es `api/telegram.py`, Vercel podría buscar una variable `app` de FastAPI.
+# El nombre del archivo en `api/` y la variable `app` deben ser consistentes o
+# usar `vercel.json` para mapear correctamente.
+# Si tu `vercel.json` en `routes` dice:
+# { "src": "/api/telegram", "dest": "/api/telegram.py" }
+# Vercel ejecutará este archivo. Si contiene `app = FastAPI()`, servirá esa app.
