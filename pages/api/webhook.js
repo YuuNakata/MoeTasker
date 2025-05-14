@@ -96,9 +96,9 @@ export default async function handler(req, res) {
 
           await delay(3500); // Esperar animación del dado
 
-          // Opcional: Editar mensaje
-          // if (initialMsgId) await editMessageText(chatId, initialMsgId, "⚙️ Procesando...");
-          // await delay(1000);
+          
+          if (initialMsgId) await editMessageText(chatId, initialMsgId, "⚙️ Procesando...");
+          await delay(1000);
 
           const result = await TaskManager.assignTasks(chatId, taskDescriptions);
           
