@@ -41,15 +41,16 @@ export async function sendDice(chatid, emoji = "🎲") {
         });
         if (!response.ok) {
             console.error("Failed to send dice. Status:", response.status, "Body:", await response.text());
-            return null;
+            return null; // Devuelve null si no está OK
         }
-        return await response.json(); // Devuelve el objeto Message del dado
+        const data = await response.json(); // Parsear JSON
+        console.log("sendDice API response:", data); // Loguear la respuesta completa
+        return data; // Devolver el objeto JSON completo
     } catch (err) {
         console.error("Error sending dice", err);
-        return null;
+        return null; // Devuelve null en caso de error de fetch
     }
 }
-
 export async function deleteMessage(chatid, messageId) {
     const url = `${TELEGRAM_API_URL}/deleteMessage`;
     try {
