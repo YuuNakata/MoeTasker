@@ -1,13 +1,13 @@
 // utils/telegram.js
 const TELEGRAM_API_URL = `https://api.telegram.org/bot${process.env.BOT_TOKEN}`;
-import { escapeMarkdownV2 } from "@/lib/services/moeHandler";
+import { escapeHTML } from '@/lib/utils/htmlEscaper';
 
 
-export async function sendMessage(chatid, text, parseMode = null) { // Añadido parseMode
+export async function sendMessage(chatid, text, parseMode = "HTML") { // Añadido parseMode
     const url = `${TELEGRAM_API_URL}/sendMessage`;
     const body = {
         chat_id: chatid,
-        text: escapeMarkdownV2(text),
+        text: text,
     };
     if (parseMode) {
         body.parse_mode = parseMode;
@@ -69,7 +69,7 @@ export async function deleteMessage(chatid, messageId) {
 }
 
 // Podrías añadir editMessageText si lo necesitas
-export async function editMessageText(chatid, messageId, text, parseMode = null) {
+export async function editMessageText(chatid, messageId, text, parseMode = "HTML") {
     const url = `${TELEGRAM_API_URL}/editMessageText`;
     const body = {
         chat_id: chatid,
