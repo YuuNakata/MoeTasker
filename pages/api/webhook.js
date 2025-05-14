@@ -104,19 +104,7 @@ export default async function handler(req, res) {
           
           // Borrar mensajes intermedios
           //if (initialMsgId) await deleteMessage(chatId, initialMsgId);
-          if (diceMsgId) {
-            console.log(`Esperando más tiempo antes de borrar el dado (ID: ${diceMsgId})...`);
-            await delay(10000); // ¡Pausa de 10 segundos! Solo para prueba.
-            console.log(`Intentando borrar diceMsgId: ${diceMsgId}`);
-            const deleteResponse = await deleteMessage(chatId, diceMsgId);
-            if (deleteResponse && deleteResponse.ok) {
-                console.log("Mensaje del dado borrado exitosamente.");
-            } else if (deleteResponse) { // Hubo respuesta, pero no fue ok
-                console.log("Fallo al borrar el mensaje del dado. Respuesta de API:", await deleteResponse.json());
-            } else { // deleteMessage devolvió null (error de fetch)
-                console.log("Fallo al borrar el mensaje del dado (error de red o fetch).");
-            }
-          }
+          if (diceMsgId) await deleteMessage(chatId, diceMsgId);
           
           await sendMessage(chatId, result.message, "HTML");
         }
