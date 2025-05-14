@@ -99,11 +99,11 @@ export default async function handler(req, res) {
           if (initialMsgId) await editMessageText(chatId, initialMsgId, "⚙️ Procesando...");
           await delay(1000);
           
-          await sendMessage(chatId,String(diceResponse.result.message_id));
+          
           const result = await TaskManager.assignTasks(chatId, taskDescriptions);
           
           // Borrar mensajes intermedios
-          if (initialMsgId) await deleteMessage(chatId, initialMsgId);
+          //if (initialMsgId) await deleteMessage(chatId, initialMsgId);
           if (diceMsgId) await deleteMessage(chatId, diceMsgId);
           
           await sendMessage(chatId, result.message, "HTML");
