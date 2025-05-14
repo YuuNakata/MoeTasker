@@ -102,13 +102,8 @@ export default async function handler(req, res) {
           const taskAssignmentResult = await TaskManager.assignTasks(chatId, taskDescriptions);
           
           // Borrar mensajes intermedios
-          if (initialMsgId) {
-            console.log(`Intentando borrar initialMsgId: ${initialMsgId}`);
-            const deleteInitialResult = await deleteMessage(chatId, initialMsgId);
-            if (!deleteInitialResult || !deleteInitialResult.ok) { // deleteMessage ahora devuelve {ok: true/false, ...}
-                console.warn("Fallo al borrar el mensaje inicial. Respuesta:", deleteInitialResult);
-            }
-          }
+          if (initialMsgId) await deleteMessage(chatId, initialMsgId);
+          if (diceMsgId) await deleteMessage(chatId, diceMsgId);
           
           await sendMessage(chatId, taskAssignmentResult.message, "HTML");
         }
