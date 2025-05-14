@@ -46,16 +46,16 @@ export default async function handler(req, res) {
     // --- Nuevos Comandos de MoeTasker ---
     else if (text.startsWith("/frase") || text.startsWith("/relax")) {
       const { phrase, kaomoji } = MoeHandler.getRandomFunPhrase();
-      await sendMessage(chatId, `${phrase} ${kaomoji}`, "MarkdownV2");
+      await sendMessage(chatId, `${phrase} ${kaomoji}`, "HTML");
     }
     else if (text.startsWith("/asignar")) {
       const argsText = text.substring("/asignar".length).trim();
       if (!argsText) {
-        await sendMessage(chatId, "Por favor, proporciona las tareas después del comando. Ejemplo: `/asignar Tarea A, Tarea B`", "MarkdownV2");
+        await sendMessage(chatId, "Por favor, proporciona las tareas después del comando. Ejemplo: `/asignar Tarea A, Tarea B`", "HTML");
       } else {
         const taskDescriptions = argsText.split(',').map(desc => desc.trim()).filter(Boolean);
         if (!taskDescriptions.length) {
-          await sendMessage(chatId, "Debes proporcionar al menos una descripción de tarea válida.", "MarkdownV2");
+          await sendMessage(chatId, "Debes proporcionar al menos una descripción de tarea válida.", "HTML");
         } else {
           const initialMsgResponse = await sendMessage(chatId, "🎲 Iniciando asignación de tareas...");
           const initialMsgId = initialMsgResponse && initialMsgResponse.ok ? (await initialMsgResponse.json()).result.message_id : null;
@@ -75,13 +75,13 @@ export default async function handler(req, res) {
           if (initialMsgId) await deleteMessage(chatId, initialMsgId);
           if (diceMsgId) await deleteMessage(chatId, diceMsgId);
           
-          await sendMessage(chatId, result.message, "MarkdownV2");
+          await sendMessage(chatId, result.message, "HTML");
         }
       }
     }
     else if (text.startsWith("/tareas")) {
       const summary = await TaskManager.getPendingTasksSummary();
-      await sendMessage(chatId, summary, "MarkdownV2");
+      await sendMessage(chatId, summary, "HTML");
     }
     // Para /completar ID y /completar_ID
     else if (text.startsWith("/completar")) {
@@ -90,10 +90,10 @@ export default async function handler(req, res) {
       const taskId = matchWithSpace ? matchWithSpace[1] : (matchWithUnderscore ? matchWithUnderscore[1] : null);
 
       if (!taskId) {
-        await sendMessage(chatId, "Por favor, proporciona el ID de la tarea. Ejemplo: `/completar_abcdef12`", "MarkdownV2");
+        await sendMessage(chatId, "Por favor, proporciona el ID de la tarea. Ejemplo: `/completar_abcdef12`", "HTML");
       } else {
         const responseMsg = await TaskManager.completeTask(taskId, userId);
-        await sendMessage(chatId, responseMsg, "MarkdownV2");
+        await sendMessage(chatId, responseMsg, "HTML");
       }
     }
     // --- Fin Nuevos Comandos ---
@@ -101,7 +101,7 @@ export default async function handler(req, res) {
       // Manejo de texto para Moe (si no es comando)
       const moeResponse = MoeHandler.getMoeResponse(text);
       if (moeResponse) {
-        await sendMessage(chatId, moeResponse, "MarkdownV2");
+        await sendMessage(chatId, moeResponse, "HTML");
       } else {
         // Si no es ningún comando conocido ni trigger moe, podrías responder con un "no entiendo"
         // o simplemente no hacer nada, o llamar a tu sendMessage(chatId, text) original como fallback.
