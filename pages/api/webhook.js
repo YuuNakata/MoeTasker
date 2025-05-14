@@ -109,10 +109,24 @@ export default async function handler(req, res) {
             await sendMessage(chatId, "No se pudo obtener el ID del mensaje del dado.");
             console.log("Respuesta completa de sendDice:", diceSendResult); 
           }
-          
+
           const result = await TaskManager.assignTasks(chatId, taskDescriptions);
           
           await sendMessage(chatId, result.message, "HTML");
+
+  
+          if (diceMsgId) {
+            console.log(`Esperando más tiempo antes de borrar el dado (ID: ${diceMsgId})...`);
+            await delay(1000); // Reducir la pausa de prueba si se decide no borrar
+            console.log(`Intentando borrar diceMsgId: ${diceMsgId}`);
+            const deleteDiceResult = await deleteMessage(chatId, diceMsgId);
+            if (deleteDiceResult && deleteDiceResult.ok) {
+                console.log("Mensaje del dado borrado exitosamente.");
+            } else {
+                console.log("Fallo al borrar el mensaje del dado. Respuesta:", deleteDiceResult);
+            }
+          }
+  
         }
       }
     }
