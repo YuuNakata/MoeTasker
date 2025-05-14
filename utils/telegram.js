@@ -1,6 +1,6 @@
 // utils/telegram.js
 const TELEGRAM_API_URL = `https://api.telegram.org/bot${process.env.BOT_TOKEN}`;
-import { escapeHTML } from '@/lib/utils/htmlEscaper';
+
 
 
 export async function sendMessage(chatid, text, parseMode = "HTML") { // Añadido parseMode

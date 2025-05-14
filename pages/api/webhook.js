@@ -1,8 +1,8 @@
 // pages/api/webhook.js
 import { sendMessage, sendDice, deleteMessage, editMessageText } from "@/utils/telegram"; // Asumiendo que ahora están en utils/telegram.js
 import * as TaskManager from "@/lib/services/taskManager"; // Nueva ruta
+import * as MoeHandler from "@/lib/services/moeHandler";   // Nueva ruta
 import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
-
 
 export const config = {
   maxDuration: 60, // Buen ajuste para funciones que pueden hacer múltiples llamadas API
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
         const welcomeMessage = 
           `¡Bienvenid@ al equipo, ${userMention}! 🎉 ${escapeHTML(kaomoji)}\n\n` +
           `Soy MoeTasker, tu asistente para la gestión de tareas del proyecto. ` +
-          `Puedes usar ${MoeHandler.code('/help')} para ver lo que puedo hacer.\n\n` +
+          `Puedes usar ${code('/help')} para ver lo que puedo hacer.\n\n` +
           `<i>"${phrase}"</i>`;
         await sendMessage(chatId, welcomeMessage, "HTML");
       }
