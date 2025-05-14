@@ -88,24 +88,25 @@ export default async function handler(req, res) {
         if (!taskDescriptions.length) {
           await sendMessage(chatId, "Debes proporcionar al menos una descripción de tarea válida.", "HTML");
         } else {
-          const initialMsgSendResult = await sendMessage(chatId, "🎲 Iniciando asignación de tareas...");
-          const initialMsgId = initialMsgSendResult && initialMsgSendResult.ok ? initialMsgSendResult.result.message_id : null;
+          const initialMsgResponse = await sendMessage(chatId, "🎲 Iniciando asignación de tareas...");
+          const initialMsgId = initialMsgResponse && initialMsgResponse.ok ? (await initialMsgResponse.json()).result.message_id : null;
           
-          const diceSendResult = await sendDice(chatId); // Esto ahora devuelve el objeto JSON {ok, result} o {ok, error}
-          const diceMsgId = diceSendResult && diceSendResult.ok && diceSendResult.result ? diceSendResult.result.message_id : null;
-        
-          await delay(3500);
-        
-          if (initialMsgId) await editMessageText(chatId, initialMsgId, "⚙️ Procesando...");
+          const diceResponse = await sendDice(chatId);
+          const diceMsgId = diceResponse ? diceResponse.result.message_id : null;
 
+          await delay(3500); // Esperar animación del dado
 
-          const taskAssignmentResult = await TaskManager.assignTasks(chatId, taskDescriptions);
+          
+          // if (initialMsgId) await editMessageText(chatId, initialMsgId, "⚙️ Procesando...");
+          // await delay(1000);
+
+          const result = await TaskManager.assignTasks(chatId, taskDescriptions);
           
           // Borrar mensajes intermedios
           if (initialMsgId) await deleteMessage(chatId, initialMsgId);
           if (diceMsgId) await deleteMessage(chatId, diceMsgId);
           
-          await sendMessage(chatId, taskAssignmentResult.message, "HTML");
+          await sendMessage(chatId, result.message, "HTML");
         }
       }
     }
