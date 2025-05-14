@@ -1,12 +1,8 @@
 // pages/api/webhook.js
 import { sendMessage, sendDice, deleteMessage, editMessageText } from "@/utils/telegram"; // Asumiendo que ahora están en utils/telegram.js
 import * as TaskManager from "@/lib/services/taskManager"; // Nueva ruta
-import * as MoeHandler from "@/lib/services/moeHandler";   // Nueva ruta
+import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
 
-// Comandos que ya tenías (asegúrate de que importen sendMessage con parse_mode si es necesario)
-import { cricketCommand } from "@/utils/commands/cricket"; // Mantén tus comandos existentes
-import { helpCommand } from "@/utils/commands/help";
-import { pingCommand } from "@/utils/commands/ping";
 
 export const config = {
   maxDuration: 60, // Buen ajuste para funciones que pueden hacer múltiples llamadas API
@@ -36,11 +32,11 @@ export default async function handler(req, res) {
         // import { mention } from '@/lib/utils/htmlEscaper';
         // const userMention = mention(memberName, member.id);
         // O construirlo manualmente:
-        const userMention = `<a href="tg://user?id=${member.id}">${MoeHandler.escapeHTML(memberName)}</a>`;
+        const userMention = `<a href="tg://user?id=${member.id}">${escapeHTML(memberName)}</a>`;
         
         const { phrase, kaomoji } = MoeHandler.getRandomFunPhrase();
         const welcomeMessage = 
-          `¡Bienvenid@ al equipo, ${userMention}! 🎉 ${MoeHandler.escapeHTML(kaomoji)}\n\n` +
+          `¡Bienvenid@ al equipo, ${userMention}! 🎉 ${escapeHTML(kaomoji)}\n\n` +
           `Soy MoeTasker, tu asistente para la gestión de tareas del proyecto. ` +
           `Puedes usar ${MoeHandler.code('/help')} para ver lo que puedo hacer.\n\n` +
           `<i>"${phrase}"</i>`;
