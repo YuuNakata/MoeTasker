@@ -1,0 +1,4 @@
+node_modules
+dist
+.env
+*.session # Si alguna vez se genera algo similar
