@@ -4,10 +4,6 @@
       {
         "path": "/api/cron/daily-reminder",
         "schedule": "0 9 * * *" 
-      },
-      {
-        "path": "/api/cron/random-message",
-        "schedule": "0 */24 * * *" 
       }
     ]
   }
