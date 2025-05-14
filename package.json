@@ -10,7 +10,7 @@
     "typescript": "^5.8.3"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && echo 'TSC build completed. Checking dist folder...' && ls -la dist",
     "start": "node dist/bot.js",
     "dev": "nodemon src/dev-server.ts",
     "dev:webhook": "nodemon src/dev-webhook-server.ts"
