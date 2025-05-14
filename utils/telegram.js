@@ -51,21 +51,25 @@ export async function sendDice(chatid, emoji = "🎲") {
         return null; // Devuelve null en caso de error de fetch
     }
 }
+
 export async function deleteMessage(chatid, messageId) {
     const url = `${TELEGRAM_API_URL}/deleteMessage`;
+    let apiResponse = null; // Para guardar la respuesta
     try {
         const response = await fetch(url, {
             method: "POST",
             headers: { 'Content-type': 'application/json' },
             body: JSON.stringify({ chat_id: chatid, message_id: messageId })
         });
+        apiResponse = response; // Guardar la respuesta para devolverla
         if (!response.ok) {
-            console.error("Failed to delete message. Status:", response.status, "Body:", await response.text());
+            console.error(`Failed to delete message. ChatID: ${chatid}, MsgID: ${messageId}. Status: ${response.status}, Body: ${await response.text()}`);
+            // No necesitas devolver response aquí si ya la guardaste, pero está bien.
         }
-        return response.ok;
+        return apiResponse; 
     } catch (err) {
-        console.error("Error deleting message", err);
-        return false;
+        console.error("Error in deleteMessage fetch:", err);
+        return null; // Error de red o similar
     }
 }
 

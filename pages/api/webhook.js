@@ -108,11 +108,13 @@ export default async function handler(req, res) {
             console.log(`Esperando más tiempo antes de borrar el dado (ID: ${diceMsgId})...`);
             await delay(10000); // ¡Pausa de 10 segundos! Solo para prueba.
             console.log(`Intentando borrar diceMsgId: ${diceMsgId}`);
-            const deleteSuccess = await deleteMessage(chatId, diceMsgId);
-            if (deleteSuccess && deleteSuccess.ok) { // Asumiendo que deleteMessage devuelve la respuesta de fetch
+            const deleteResponse = await deleteMessage(chatId, diceMsgId);
+            if (deleteResponse && deleteResponse.ok) {
                 console.log("Mensaje del dado borrado exitosamente.");
-            } else {
-                console.log("Fallo al borrar el mensaje del dado (después de pausa larga). Respuesta de deleteMessage:", deleteSuccess ? await deleteSuccess.json() : "null response");
+            } else if (deleteResponse) { // Hubo respuesta, pero no fue ok
+                console.log("Fallo al borrar el mensaje del dado. Respuesta de API:", await deleteResponse.json());
+            } else { // deleteMessage devolvió null (error de fetch)
+                console.log("Fallo al borrar el mensaje del dado (error de red o fetch).");
             }
           }
           
