@@ -1,6 +1,6 @@
 // utils/telegram.js
 const TELEGRAM_API_URL = `https://api.telegram.org/bot${process.env.BOT_TOKEN}`;
-import { escapeMarkdownV2 } from './moeHandler';
+import { escapeMarkdownV2 } from "@/lib/services/moeHandler";
 
 
 export async function sendMessage(chatid, text, parseMode = null) { // Añadido parseMode
