@@ -1,5 +1,5 @@
 // pages/api/webhook.js
-import { sendMessage, sendDice, deleteMessage, editMessageText } from "@/utils/telegram"; // Asumiendo que ahora están en utils/telegram.js
+import { sendMessage, sendDice, deleteMessage,editMessageText, forwardMessage, sendDocumentByFileId} from "@/utils/telegram"; // Asumiendo que ahora están en utils/telegram.js
 import * as TaskManager from "@/lib/services/taskManager"; // Nueva ruta
 import * as MoeHandler from "@/lib/services/moeHandler";   // Nueva ruta
 import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
   }
 
   console.log(`Webhook Procesado: ChatID=${chatId}, UserID=${userId}, Text="${text}"`);
-  
+
   try {
     if (text.startsWith("/start") || text.startsWith("/help")) {
       const helpText = MoeHandler.getHelpMessage(userFirstName);
@@ -138,6 +138,53 @@ export default async function handler(req, res) {
         await sendMessage(chatId, responseMsg, "HTML");
       }
     }
+
+    else if (text.startsWith("/trabajo")) {
+      if (messageObject.reply_to_message && messageObject.reply_to_message.document) {
+        // El comando es una respuesta a un mensaje con un documento
+        const repliedMsg = messageObject.reply_to_message;
+        const document = repliedMsg.document;
+
+        // Verificar extensión (opcional pero bueno)
+        const fileName = document.file_name || "";
+        if (fileName.toLowerCase().endsWith(".doc") || fileName.toLowerCase().endsWith(".docx")) {
+          const result = await TaskManager.setPinnedWork(
+            repliedMsg.chat.id, // Chat ID del mensaje original del documento
+            repliedMsg.message_id, // Message ID del mensaje original del documento
+            document, // El objeto documento completo
+            userId // Quién lo fijó
+          );
+          await sendMessage(chatId, result.message, "HTML");
+        } else {
+          await sendMessage(chatId, escapeHTML("⚠️ Por favor, responde a un mensaje que contenga un archivo <code>.doc</code> o <code>.docx</code>."), "HTML");
+        }
+      } else {
+        // El comando NO es una respuesta a un documento, o no es respuesta
+        // Intentar enviar el trabajo fijado si existe
+        const result = await TaskManager.getPinnedWork();
+        if (result.success && result.work) {
+          const work = result.work;
+          await sendMessage(chatId, `📄 Aquí está el trabajo fijado actual ("${escapeHTML(work.fileName)}"):`, "HTML");
+          
+          // Opción 1: Reenviar el mensaje original (más simple si el bot tiene acceso)
+          // Necesitas que el bot esté en el mismo chat que work.chatId o que el mensaje sea de un canal público, etc.
+          // await forwardMessage(chatId, work.chatId, work.messageId);
+
+          // Opción 2: Enviar el documento por file_id (más robusto)
+          // El caption ya está en work.caption, y debería estar escapado si es necesario al guardarlo,
+          // o lo escapamos aquí. Por simplicidad, asumimos que es texto plano o ya escapado.
+          await sendDocumentByFileId(chatId, work.fileId, work.caption ? escapeHTML(work.caption) : null, "HTML");
+
+        } else {
+          // No hay trabajo fijado, enviar el mensaje de getPinnedWork
+          await sendMessage(chatId, result.message, "HTML"); // result.message ya tiene el code()
+        }
+      }
+    }
+    // --- Fin Comando /trabajo ---
+
+    // ... (resto de tus comandos: /asignar, /tareas, /completar, /clear_tasks, /frase) ...
+
     // --- Fin Nuevos Comandos ---
     else {
       // Manejo de texto para Moe (si no es comando)
