@@ -1,5 +1,4 @@
 aiogram>=3.0.0
 python-dotenv
-uuid
 fastapi
-uvicorn # Para correr FastAPI localmente
+uvicorn
