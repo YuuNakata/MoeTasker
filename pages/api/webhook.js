@@ -1,5 +1,5 @@
 // pages/api/webhook.js
-import { sendMessage, sendDice, deleteMessage,editMessageText, forwardMessage, sendDocumentByFileId} from "@/utils/telegram"; // Asumiendo que ahora están en utils/telegram.js
+import { sendMessage, sendDice, deleteMessage,editMessageText, forwardMessage, sendDocumentByFileId , sendSticker} from "@/utils/telegram"; // Asumiendo que ahora están en utils/telegram.js
 import * as TaskManager from "@/lib/services/taskManager"; // Nueva ruta
 import * as MoeHandler from "@/lib/services/moeHandler";   // Nueva ruta
 import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
@@ -53,6 +53,31 @@ export default async function handler(req, res) {
     // ... (tu lógica de bienvenida igual, usando messageObject.new_chat_members y messageObject.chat.id) ...
     return res.status(200).send("OK"); 
   }
+
+  if (messageObject.reply_to_message && 
+    messageObject.reply_to_message.from && 
+    messageObject.reply_to_message.from.is_bot &&
+    messageObject.reply_to_message.from.username === process.env.BOT_USERNAME) { // Asegúrate de tener BOT_USERNAME en .env
+  
+  // El mensaje es una respuesta a un mensaje de NUESTRO bot.
+  console.log(`Webhook: El usuario ${messageObject.from.id} respondió a un mensaje de nuestro bot.`);
+  
+  const stickerFileId = MoeHandler.getRandomReplySticker();
+  if (stickerFileId) {
+    try {
+      await sendSticker(messageObject.chat.id, stickerFileId);
+      console.log(`Webhook: Sticker de respuesta enviado a ${messageObject.chat.id}`);
+    } catch (e) {
+      console.error("Webhook: Error al enviar sticker de respuesta:", e);
+    }
+  } else {
+    console.log("Webhook: No hay stickers de respuesta configurados o no se pudo seleccionar uno.");
+  }
+  // Después de enviar el sticker, ¿quieres que el bot procese también el texto del reply como un comando o trigger moe?
+  // Si SÍ, comenta el siguiente `return` y deja que el código continúe.
+  // Si NO (solo envía el sticker y ya), deja el `return`.
+  return res.status(200).send("OK"); // Termina el procesamiento aquí por ahora.
+}
 
   const chatId = messageObject.chat.id;
   let text = messageObject.text || "";
