@@ -148,3 +148,28 @@ export async function sendDocumentByFileId(chatid, fileId, caption = null, parse
         return null;
     }
 }
+
+export async function sendSticker(chatid, fileId) {
+    const url = `${TELEGRAM_API_URL}/sendSticker`;
+    const bodyPayload = {
+        chat_id: chatid,
+        sticker: fileId, // Enviar por file_id
+    };
+    const context = { action: "sendSticker", chatid, fileId };
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { 'Content-type': 'application/json' },
+            body: JSON.stringify(bodyPayload)
+        });
+        // Usar handleTelegramResponse si lo tienes, o manejar la respuesta aquí
+        if (!response.ok) {
+            console.error(`Failed to send sticker. ChatID: ${chatid}, FileID: ${fileId}. Status: ${response.status}, Body: ${await response.text()}`);
+            return null; // O devuelve el objeto de error
+        }
+        return await response.json(); // Devuelve el objeto Message del sticker enviado
+    } catch (err) {
+        console.error("Error in sendSticker fetch:", err, context);
+        return null; // O devuelve un objeto de error
+    }
+}
