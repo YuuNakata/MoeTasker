@@ -3,28 +3,34 @@ const TELEGRAM_API_URL = `https://api.telegram.org/bot${process.env.BOT_TOKEN}`;
 
 
 
-export async function sendMessage(chatid, text, parseMode = "HTML") { // Añadido parseMode
+export async function sendMessage(chatid, text, parseMode = "HTML", silent = false) {
     const url = `${TELEGRAM_API_URL}/sendMessage`;
     const body = {
         chat_id: chatid,
         text: text,
     };
+
     if (parseMode) {
         body.parse_mode = parseMode;
     }
 
+
+    if (silent) {
+        body.disable_notification = true;
+    }
+
     try {
-        const response = await fetch(url, { // 'response' en minúscula
+        const response = await fetch(url, {
             method: "POST",
             headers: {
                 'Content-type': 'application/json'
             },
             body: JSON.stringify(body)
         });
-        if (!response.ok){ // 'response' en minúscula
+        if (!response.ok){
             console.error("Failed to send message to telegram user. Status:", response.status, "Body:", await response.text());
         }
-        return response; // Devolver la respuesta para poder obtener message_id
+        return response; 
     } catch (err) {
         console.error("Error occured while sending message to telegram user", err);
         return null;
