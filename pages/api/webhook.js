@@ -145,8 +145,11 @@ export default async function handler(req, res) {
 
   if (messageObject.chat.type === "group" || messageObject.chat.type === "supergroup") {
     const botUsername = process.env.BOT_USERNAME;
-    if (botUsername && text.startsWith(`@${botUsername}`)) {
-      text = text.replace(`@${botUsername}`, "").trim();
+    const commandRegex = new RegExp(`^(\\/\\w+)(?:@${botUsername})?(.*)`, "i");
+    const match = text.match(commandRegex);
+
+    if (match) {
+      text = (match[1] + match[2]).trim();
     }
   }
 
