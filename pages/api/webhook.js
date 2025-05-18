@@ -1,5 +1,5 @@
 // pages/api/webhook.js
-import { sendMessage, sendDice, deleteMessage,editMessageText, forwardMessage, sendDocumentByFileId , sendSticker} from "@/utils/telegram";
+import { sendMessage, sendDice, deleteMessage, editMessageText, forwardMessage, sendDocumentByFileId, sendSticker, answerCallbackQuery } from "@/utils/telegram";
 import * as TaskManager from "@/lib/services/taskManager";
 import * as MoeHandler from "@/lib/services/moeHandler";
 import * as OracleManager from "@/lib/services/oracleManager";
@@ -8,6 +8,15 @@ import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
 export const config = {
   maxDuration: 60,
 };
+
+const TASK_TRIGGER_KEYWORDS = [
+  "hay que", "necesitamos", "deberíamos", "deberia", "pendiente",
+  "tengo que", "tenemos que", "falta hacer", "recordar hacer",
+  "no olvidar", "sería bueno", "estaria bien", "investigar sobre",
+  "revisar el", "arreglar el", "implementar el", "crear un",
+  "añadir un", "terminar el", "optimizar el"
+];
+const NEGATION_KEYWORDS = ["no", "nunca", "tampoco"];
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -24,13 +33,51 @@ export default async function handler(req, res) {
                       update.channel_post || 
                       update.edited_channel_post;
   
-  let callbackQueryData = null;
-  let userFromCallback = null;
   if (update.callback_query) {
-    messageObject = update.callback_query.message;
-    callbackQueryData = update.callback_query.data;
-    userFromCallback = update.callback_query.from;
-    console.log("Webhook: Es un callback_query. Data:", callbackQueryData);
+    const cq = update.callback_query;
+    messageObject = cq.message;
+    const callbackQueryData = cq.data;
+    const userFromCallback = cq.from;
+    const originalChatId = messageObject.chat.id;
+    const originalMessageId = messageObject.message_id;
+
+    console.log("Webhook: CallbackQuery. Data:", callbackQueryData, "UserID:", userFromCallback.id);
+
+    try {
+      if (callbackQueryData.startsWith("create_task_confirm:")) {
+        const encodedTaskDesc = callbackQueryData.split(":")[1];
+        const taskDescription = decodeURIComponent(encodedTaskDesc);
+        
+        const result = await TaskManager.assignTasks(originalChatId, [taskDescription]);
+        let confirmationText = `¡Entendido! ${MoeHandler.getRandomKaomoji()} He creado la tareíta: "${escapeHTML(taskDescription)}".`;
+        if (result.message && result.message.includes("Asignada a:")) {
+            confirmationText += `\n${result.message}`;
+        }
+
+        await editMessageText(
+          originalChatId,
+          originalMessageId,
+          confirmationText.trim(),
+          "HTML",
+          null // Quitar teclado
+        );
+        await answerCallbackQuery(cq.id, { text: "¡Tarea creada! ✨" });
+
+      } else if (callbackQueryData === "create_task_cancel") {
+        await editMessageText(
+          originalChatId,
+          originalMessageId,
+          `¡De acuerdo, sempai! ${MoeHandler.getRandomKaomoji()} No crearé la tarea esta vez. Si cambias de opinión, ¡ya sabes dónde encontrarme!`,
+          "HTML",
+          null // Quitar teclado
+        );
+        await answerCallbackQuery(cq.id, { text: "Cancelado ( ´ ∀ ` )ﾉ" });
+      }
+      // Aquí irían otros manejadores de callback_query futuros
+    } catch (error) {
+        console.error("Error procesando callback_query:", error);
+        await answerCallbackQuery(cq.id, { text: "¡Ups! Algo salió mal (つω`｡)" });
+    }
     return res.status(200).send("OK");
   }
 
@@ -74,13 +121,14 @@ export default async function handler(req, res) {
 
   if (messageObject.chat.type === "group" || messageObject.chat.type === "supergroup") {
     const botUsername = process.env.BOT_USERNAME;
-    if (botUsername && text.includes(`@${botUsername}`)) {
+    if (botUsername && text.startsWith(`@${botUsername}`)) {
       text = text.replace(`@${botUsername}`, "").trim();
     }
   }
 
   console.log(`Webhook Procesado: ChatID=${chatId}, UserID=${userId}, Text="${text}"`);
   let commandProcessed = false;
+  let suggestionProcessed = false;
 
   try {
     if (text.startsWith("/start") || text.startsWith("/help")) {
@@ -102,15 +150,19 @@ export default async function handler(req, res) {
         if (!taskDescriptions.length) {
           await sendMessage(chatId, `Debes proporcionar al menos una descripción de tarea válida, ¿siii? ${MoeHandler.getRandomKaomoji()}`, "HTML");
         } else {
-          const initialMsgResponse = await sendMessage(chatId, `🎲 ¡A la cargaaa! Asignando tareas... ${MoeHandler.getRandomKaomoji()}`);
-          const initialMsgId = initialMsgResponse && initialMsgResponse.ok ? (await initialMsgResponse.json()).result.message_id : null;
+          const initialMsgResponse = await sendMessage(chatId, `🎲 ¡A la cargaaa! Asignando tareitas... ${MoeHandler.getRandomKaomoji()}`);
+          let initialMsgId = null;
+          if (initialMsgResponse && initialMsgResponse.ok) {
+            const initialMsgData = await initialMsgResponse.json();
+            initialMsgId = initialMsgData.result.message_id;
+          }
           
-          const diceResponse = await sendDice(chatId);
-          const diceMsgId = diceResponse ? diceResponse.result.message_id : null;
+          const diceApiResponse = await sendDice(chatId);
+          const diceMsgId = diceApiResponse ? diceApiResponse.result.message_id : null;
 
           await delay(3500);
           
-          if (initialMsgId) await editMessageText(chatId, initialMsgId, `⚙️ Procesando... ${MoeHandler.getRandomKaomoji()}`);
+          if (initialMsgId) await editMessageText(chatId, initialMsgId, `⚙️ Procesando con mucho amor... ${MoeHandler.getRandomKaomoji()}`);
           await delay(1000);
 
           const result = await TaskManager.assignTasks(chatId, taskDescriptions);
@@ -130,7 +182,7 @@ export default async function handler(req, res) {
     }
     else if (text.startsWith("/clear_tasks")) {
       let summaryMsg = ``;
-      const cleared = await TaskManager.clear_tasks(); // Asumimos que clear_tasks ahora es async
+      const cleared = await TaskManager.clear_tasks();
       if (cleared){
         summaryMsg = `¡Todas las tareas han desaparecido! ¡Puf! ✨ ${MoeHandler.getRandomKaomoji()}`;
       } else {
@@ -172,7 +224,7 @@ export default async function handler(req, res) {
         const result = await TaskManager.getPinnedWork();
         if (result.success && result.work) {
           const work = result.work;
-          await sendMessage(chatId, `📄 ¡Aquí está el trabajo del proyecto que guardamos ("${escapeHTML(work.fileName)}")! ${MoeHandler.getRandomKaomoji()}`, "HTML");
+          await sendMessage(chatId, `📄 ¡Aquí está el trabajito del proyecto que guardamos ("${escapeHTML(work.fileName)}")! ${MoeHandler.getRandomKaomoji()}`, "HTML");
           await sendDocumentByFileId(chatId, work.fileId, work.caption ? escapeHTML(work.caption) : null, "HTML");
         } else {
           await sendMessage(chatId, result.message, "HTML");
@@ -183,7 +235,7 @@ export default async function handler(req, res) {
     else if (text.startsWith("/guardar_decision")) {
       const decisionText = text.substring("/guardar_decision".length).trim();
       if (!decisionText) {
-        await sendMessage(chatId, `Debes decirme qué decisión guardar, pls ${MoeHandler.getRandomKaomoji()}`, "HTML");
+        await sendMessage(chatId, `¡Nya~! Debes decirme qué decisión guardar, porfis ${MoeHandler.getRandomKaomoji()}`, "HTML");
       } else {
         const result = await OracleManager.saveOracleDecision(chatId, messageObject.message_id, userId, userFirstName, decisionText);
         await sendMessage(chatId, result.message, "HTML");
@@ -194,28 +246,90 @@ export default async function handler(req, res) {
       const questionText = text.substring("/oraculo".length).trim();
       if (questionText) {
          await sendMessage(chatId, `El Oráculo está consultando las estrellas... ${MoeHandler.getRandomKaomoji()} Espérame un poquito~`, "HTML");
-         await delay(1500); // Pequeña pausa para el efecto
+         await delay(1500);
       }
       const oracleResponse = await OracleManager.queryOracle(questionText);
       await sendMessage(chatId, oracleResponse, "HTML");
       commandProcessed = true;
     }
-    else {
+    else { // No es un comando explícito
       const moeResponse = MoeHandler.getMoeResponse(text);
       if (moeResponse) {
         await sendMessage(chatId, moeResponse, "HTML");
-        commandProcessed = true;
+        commandProcessed = true; // Considerar si las respuestas Moe deben evitar otras lógicas
       }
     }
 
-    if (!commandProcessed && messageObject && messageObject.text && messageObject.text.trim() !== "" && !messageObject.from.is_bot) {
+    // Detector de Tareas Implícitas
+    if (!commandProcessed && messageObject && messageObject.text && !messageObject.from.is_bot) {
+      const textToAnalyze = messageObject.text.toLowerCase();
+      let potentialTaskDescription = null;
+
+      for (const keyword of TASK_TRIGGER_KEYWORDS) {
+        const keywordIndex = textToAnalyze.indexOf(keyword);
+        if (keywordIndex !== -1) {
+          let isNegated = false;
+          for (const negWord of NEGATION_KEYWORDS) {
+            if (textToAnalyze.substring(Math.max(0, keywordIndex - negWord.length - 3), keywordIndex).includes(negWord)) {
+              isNegated = true;
+              break;
+            }
+          }
+          if (isNegated) continue;
+
+          let taskTextStartIndex = keywordIndex + keyword.length;
+          potentialTaskDescription = messageObject.text.substring(taskTextStartIndex).trim();
+          
+          if (potentialTaskDescription.match(/^[,.:;!?\s]+/)) {
+              potentialTaskDescription = potentialTaskDescription.replace(/^[,.:;!?\s]+/, "");
+          }
+
+          if (potentialTaskDescription.length > 150) {
+            potentialTaskDescription = potentialTaskDescription.substring(0, 150) + "...";
+          }
+          
+          if (potentialTaskDescription && potentialTaskDescription.length > 3) { // Ajustar longitud mínima
+            break;
+          } else {
+            potentialTaskDescription = null;
+          }
+        }
+      }
+
+      if (potentialTaskDescription) {
+        suggestionProcessed = true;
+        const escapedDescription = escapeHTML(potentialTaskDescription);
+        const shortDescriptionForButton = potentialTaskDescription.length > 25
+            ? escapeHTML(potentialTaskDescription.substring(0, 22) + "...") 
+            : escapeHTML(potentialTaskDescription);
+
+        const messageText = `¡Oído cocina! (๑•̀ㅂ•́)و✧ Mencionaste algo sobre "${italic(escapedDescription)}". ¿Te gustaría que cree una tareíta para esto, sempai?`;
+        
+        const inlineKeyboard = {
+          inline_keyboard: [
+            [
+              { text: `✔️ Sí: "${shortDescriptionForButton}"`, callback_data: `create_task_confirm:${encodeURIComponent(potentialTaskDescription)}` },
+            ],
+            [
+              { text: `❌ No, gracias ${MoeHandler.getRandomKaomoji()}`, callback_data: "create_task_cancel" }
+            ]
+          ]
+        };
+        await sendMessage(chatId, messageText, "HTML", false, inlineKeyboard);
+      }
+    }
+
+    // Guardar en Oráculo si no fue comando y no se sugirió tarea (o según prefieras)
+    if (!commandProcessed && !suggestionProcessed && messageObject && messageObject.text && messageObject.text.trim() !== "" && !messageObject.from.is_bot) {
         await OracleManager.storeMessageForOracle(messageObject);
     }
     
     res.status(200).send("OK");
 
   } catch (error) {
-    console.error("Webhook Error:", error);
+    console.error("Webhook Error General:", error);
+    // Considerar enviar un mensaje de error genérico al chat si es apropiado y no se envió ya una respuesta
+    // await sendMessage(chatId, `¡Uups! Algo se rompió en mis circuitos... ${MoeHandler.getRandomKaomoji()} Gomen~`);
     res.status(500).send("Internal Server Error");
   }
 }

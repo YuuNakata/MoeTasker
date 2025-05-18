@@ -1,9 +1,7 @@
 // utils/telegram.js
-const TELEGRAM_API_URL = `https://api.telegram.org/bot${process.env.BOT_TOKEN}`;
+const TELEGRAM_API_URL = `https://api.telegram.org/bot${process.env.BOT_TOKEN}`; // Cambiado a TELEGRAM_BOT_TOKEN como en tu webhook
 
-
-
-export async function sendMessage(chatid, text, parseMode = "HTML", silent = false) {
+export async function sendMessage(chatid, text, parseMode = "HTML", silent = false, replyMarkup = null) {
     const url = `${TELEGRAM_API_URL}/sendMessage`;
     const body = {
         chat_id: chatid,
@@ -14,9 +12,12 @@ export async function sendMessage(chatid, text, parseMode = "HTML", silent = fal
         body.parse_mode = parseMode;
     }
 
-
     if (silent) {
         body.disable_notification = true;
+    }
+
+    if (replyMarkup) { // Nuevo: para inline_keyboard u otros reply_markup
+        body.reply_markup = replyMarkup;
     }
 
     try {
@@ -30,7 +31,8 @@ export async function sendMessage(chatid, text, parseMode = "HTML", silent = fal
         if (!response.ok){
             console.error("Failed to send message to telegram user. Status:", response.status, "Body:", await response.text());
         }
-        return response; 
+        // Devolver la respuesta completa para que el llamador pueda parsear el JSON si es necesario (ej. para obtener message_id)
+        return response;
     } catch (err) {
         console.error("Error occured while sending message to telegram user", err);
         return null;
@@ -47,16 +49,16 @@ export async function sendDice(chatid, emoji = "🎲") {
         });
         if (!response.ok) {
             console.error("Failed to send dice. Status:", response.status, "Body:", await response.text());
-            return null; // Devuelve null si no está OK
+            return null;
         }
-        const data = await response.json(); // Parsear JSON
-        console.log("sendDice API response:", data); // Loguear la respuesta completa
-        return data; // Devolver el objeto JSON completo
+        // Devolver la respuesta parseada para poder acceder a result.message_id, etc.
+        return await response.json();
     } catch (err) {
         console.error("Error sending dice", err);
-        return null; // Devuelve null en caso de error de fetch
+        return null;
     }
 }
+
 export async function deleteMessage(chatid, messageId) {
     const url = `${TELEGRAM_API_URL}/deleteMessage`;
     try {
@@ -75,8 +77,7 @@ export async function deleteMessage(chatid, messageId) {
     }
 }
 
-// Podrías añadir editMessageText si lo necesitas
-export async function editMessageText(chatid, messageId, text, parseMode = "HTML") {
+export async function editMessageText(chatid, messageId, text, parseMode = "HTML", replyMarkup = null) {
     const url = `${TELEGRAM_API_URL}/editMessageText`;
     const body = {
         chat_id: chatid,
@@ -86,6 +87,10 @@ export async function editMessageText(chatid, messageId, text, parseMode = "HTML
     if (parseMode) {
         body.parse_mode = parseMode;
     }
+    if (replyMarkup) { // Nuevo: para editar/quitar inline_keyboard
+        body.reply_markup = replyMarkup;
+    }
+
     try {
         const response = await fetch(url, {
             method: "POST",
@@ -95,10 +100,11 @@ export async function editMessageText(chatid, messageId, text, parseMode = "HTML
         if (!response.ok) {
             console.error("Failed to edit message. Status:", response.status, "Body:", await response.text());
         }
-        return response.ok;
+        // Devolver la respuesta completa o parseada si es necesario
+        return response; // o await response.json() si necesitas el mensaje editado
     } catch (err) {
         console.error("Error editing message", err);
-        return false;
+        return null; // o false si prefieres booleano
     }
 }
 
@@ -108,7 +114,6 @@ export async function forwardMessage(targetChatId, fromChatId, messageId) {
         chat_id: targetChatId,
         from_chat_id: fromChatId,
         message_id: messageId,
-        // disable_notification: true // Opcional
     };
     try {
         const response = await fetch(url, {
@@ -130,12 +135,12 @@ export async function sendDocumentByFileId(chatid, fileId, caption = null, parse
     const url = `${TELEGRAM_API_URL}/sendDocument`;
     const body = {
         chat_id: chatid,
-        document: fileId, // Enviar por file_id
+        document: fileId,
     };
     if (caption) {
-        body.caption = caption; // El caption ya debería estar escapado si es necesario
+        body.caption = caption;
     }
-    if (parseMode && caption) { // parseMode aplica al caption
+    if (parseMode && caption) {
         body.parse_mode = parseMode;
     }
 
@@ -159,23 +164,48 @@ export async function sendSticker(chatid, fileId) {
     const url = `${TELEGRAM_API_URL}/sendSticker`;
     const bodyPayload = {
         chat_id: chatid,
-        sticker: fileId, // Enviar por file_id
+        sticker: fileId,
     };
-    const context = { action: "sendSticker", chatid, fileId };
     try {
         const response = await fetch(url, {
             method: "POST",
             headers: { 'Content-type': 'application/json' },
             body: JSON.stringify(bodyPayload)
         });
-        // Usar handleTelegramResponse si lo tienes, o manejar la respuesta aquí
         if (!response.ok) {
             console.error(`Failed to send sticker. ChatID: ${chatid}, FileID: ${fileId}. Status: ${response.status}, Body: ${await response.text()}`);
-            return null; // O devuelve el objeto de error
+            return null;
         }
-        return await response.json(); // Devuelve el objeto Message del sticker enviado
+        return await response.json();
     } catch (err) {
-        console.error("Error in sendSticker fetch:", err, context);
-        return null; // O devuelve un objeto de error
+        console.error("Error in sendSticker fetch:", err);
+        return null;
     }
+}
+
+// Nueva función para answerCallbackQuery
+export async function answerCallbackQuery(callbackQueryId, options = {}) {
+  const url = `${TELEGRAM_API_URL}/answerCallbackQuery`;
+  const body = {
+    callback_query_id: callbackQueryId,
+    ...options, // text, show_alert, url, cache_time
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      // No es crítico si esto falla, así que solo logueamos
+      console.error('Error en answerCallbackQuery:', response.status, await response.text());
+    }
+    // No necesitamos parsear la respuesta de answerCallbackQuery generalmente,
+    // solo saber si se envió o no. response.ok es suficiente.
+    return response.ok;
+  } catch (error) {
+    console.error('Error de red en answerCallbackQuery:', error);
+    return false; // Falló la comunicación
+  }
 }
