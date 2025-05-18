@@ -306,10 +306,6 @@ export default async function handler(req, res) {
           if (potentialTaskDescription.match(/^[,.:;!?\s]+/)) {
               potentialTaskDescription = potentialTaskDescription.replace(/^[,.:;!?\s]+/, "");
           }
-
-          if (potentialTaskDescription.length > 150) {
-            potentialTaskDescription = potentialTaskDescription.substring(0, 150) + "...";
-          }
           
           if (potentialTaskDescription && potentialTaskDescription.length > 3) { // Ajustar longitud mínima
             break;
@@ -321,24 +317,44 @@ export default async function handler(req, res) {
 
       if (potentialTaskDescription) {
         suggestionProcessed = true;
-        const escapedDescription = escapeHTML(potentialTaskDescription);
-        const shortDescriptionForButton = potentialTaskDescription.length > 25
-            ? escapeHTML(potentialTaskDescription.substring(0, 22) + "...") 
+        const suggestionKey = generateSuggestionKey();
+        
+        try {
+          await query(
+            `INSERT INTO temporary_task_suggestions (suggestion_key, full_description, chat_id, user_id)
+             VALUES ($1, $2, $3, $4)`,
+            [suggestionKey, potentialTaskDescription, chatId, userId]
+          );
+
+          // Ahora el texto del botón será más corto y el callback_data usará la clave
+          const escapedOriginalTextPreview = escapeHTML(
+            messageObject.text.length > 40 ? messageObject.text.substring(0, 37) + "..." : messageObject.text
+          );
+          // El shortDescriptionForButton es solo para el TEXTO del botón, no para callback_data
+          const shortDescriptionForButtonText = potentialTaskDescription.length > 20 
+            ? escapeHTML(potentialTaskDescription.substring(0, 17) + "...") 
             : escapeHTML(potentialTaskDescription);
 
-        const messageText = `¡Oído cocina! (๑•̀ㅂ•́)و✧ Mencionaste algo sobre "${italic(escapedDescription)}". ¿Te gustaría que cree una tareíta para esto, sempai?`;
-        
-        const inlineKeyboard = {
-          inline_keyboard: [
-            [
-              { text: `✔️ Sí: "${shortDescriptionForButton}"`, callback_data: `create_task_confirm:${encodeURIComponent(potentialTaskDescription)}` },
-            ],
-            [
-              { text: `❌ No, gracias ${MoeHandler.getRandomKaomoji()}`, callback_data: "create_task_cancel" }
+
+          const messageText = `¡Oído cocina! (๑•̀ㅂ•́)و✧ Detecté que mencionaste "${italic(escapedOriginalTextPreview)}". ¿Debería crear una tareíta para "${italic(escapeHTML(potentialTaskDescription))}", sempai?`;
+          
+          const inlineKeyboard = {
+            inline_keyboard: [
+              [
+                // El texto del botón puede ser más descriptivo
+                { text: `✔️ Sí: "${shortDescriptionForButtonText}"`, callback_data: `create_task_confirm_sugg:${suggestionKey}` }, // Usar la clave
+              ],
+              [
+                { text: `❌ No, gracias ${MoeHandler.getRandomKaomoji()}`, callback_data: "create_task_cancel" }
+              ]
             ]
-          ]
-        };
-        await sendMessage(chatId, messageText, "HTML", false, inlineKeyboard);
+          };
+          await sendMessage(chatId, messageText, "HTML", false, inlineKeyboard);
+
+        } catch (dbError) {
+          console.error("Error guardando sugerencia de tarea temporal:", dbError);
+          suggestionProcessed = false; // Falló, así que no la consideramos procesada
+        }
       }
     }
 
