@@ -3,6 +3,7 @@ import { sendMessage, sendDice, deleteMessage, editMessageText, forwardMessage, 
 import * as TaskManager from "@/lib/services/taskManager";
 import * as MoeHandler from "@/lib/services/moeHandler";
 import * as OracleManager from "@/lib/services/oracleManager";
+import { query } from '@/lib/db';
 import { randomBytes } from 'crypto';
 import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
 
@@ -318,7 +319,7 @@ export default async function handler(req, res) {
       if (potentialTaskDescription) {
         suggestionProcessed = true;
         const suggestionKey = generateSuggestionKey();
-        
+
         try {
           await query(
             `INSERT INTO temporary_task_suggestions (suggestion_key, full_description, chat_id, user_id)
