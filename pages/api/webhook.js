@@ -1,14 +1,14 @@
 // pages/api/webhook.js
-import { sendMessage, sendDice, deleteMessage,editMessageText, forwardMessage, sendDocumentByFileId , sendSticker} from "@/utils/telegram"; // Asumiendo que ahora están en utils/telegram.js
-import * as TaskManager from "@/lib/services/taskManager"; // Nueva ruta
-import * as MoeHandler from "@/lib/services/moeHandler";   // Nueva ruta
+import { sendMessage, sendDice, deleteMessage,editMessageText, forwardMessage, sendDocumentByFileId , sendSticker} from "@/utils/telegram";
+import * as TaskManager from "@/lib/services/taskManager";
+import * as MoeHandler from "@/lib/services/moeHandler";
+import * as OracleManager from "@/lib/services/oracleManager";
 import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
 
 export const config = {
-  maxDuration: 60, // Buen ajuste para funciones que pueden hacer múltiples llamadas API
+  maxDuration: 60,
 };
 
-// Helper para esperar
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 export default async function handler(req, res) {
@@ -17,218 +17,205 @@ export default async function handler(req, res) {
     return res.status(405).send('Method Not Allowed');
   }
   
-  // Validar que el body y message existen
-  const update = req.body; // El objeto update completo de Telegram
+  const update = req.body;
 
-  // Extraer el objeto 'message' o el relevante para el update
   let messageObject = update.message || 
                       update.edited_message || 
                       update.channel_post || 
                       update.edited_channel_post;
   
-
-  // Para callback_query, el 'message' está anidado de forma diferente
   let callbackQueryData = null;
   let userFromCallback = null;
   if (update.callback_query) {
-    messageObject = update.callback_query.message; // El mensaje al que estaba adjunto el botón
+    messageObject = update.callback_query.message;
     callbackQueryData = update.callback_query.data;
     userFromCallback = update.callback_query.from;
     console.log("Webhook: Es un callback_query. Data:", callbackQueryData);
-    // Aquí manejarías la lógica de los botones inline y responderías con answerCallbackQuery
-    // await bot.telegram.answerCallbackQuery(update.callback_query.id); // Ejemplo con Telegraf/Aiogram
-    // Con tu fetch manual, necesitarías llamar al método answerCallbackQuery de la API
-    // Por ahora, simplemente respondemos OK para este ejemplo
     return res.status(200).send("OK");
   }
 
   if (!messageObject) {
     console.warn("Webhook: No se pudo extraer un objeto de mensaje procesable del update.", update);
-    return res.status(200).send("OK"); // Aceptar el update para evitar reintentos
+    return res.status(200).send("OK");
   }
 
-  // Manejo de nuevos miembros
   if (messageObject.new_chat_members && messageObject.new_chat_members.length > 0) {
     const chatId = messageObject.chat.id;
-    // ... (tu lógica de bienvenida igual, usando messageObject.new_chat_members y messageObject.chat.id) ...
+    for (const member of messageObject.new_chat_members) {
+        if (member.is_bot && member.username === process.env.BOT_USERNAME) {
+          await sendMessage(chatId, `¡Konichiwa minna-san! (≧◡≦) Soy ${process.env.BOT_NAME || 'su nueva amiga bot'}, ¡lista para ayudarles con el proyecto! Usen ${code("/help")} para ver mis poderes~ ✨`);
+        } else if (!member.is_bot) {
+          await sendMessage(chatId, `¡Bienvenido/a al equipo, ${escapeHTML(member.first_name)}-san! ${MoeHandler.getRandomKaomoji()} ¡Espero que trabajemos súper bien juntos!`);
+        }
+      }
     return res.status(200).send("OK"); 
   }
 
   if (messageObject.reply_to_message && 
     messageObject.reply_to_message.from && 
     messageObject.reply_to_message.from.is_bot &&
-    messageObject.reply_to_message.from.username === process.env.BOT_USERNAME) { // Asegúrate de tener BOT_USERNAME en .env
+    messageObject.reply_to_message.from.username === process.env.BOT_USERNAME) {
   
-  // El mensaje es una respuesta a un mensaje de NUESTRO bot.
-  console.log(`Webhook: El usuario ${messageObject.from.id} respondió a un mensaje de nuestro bot.`);
-  
-  const stickerFileId = MoeHandler.getRandomReplySticker();
-  if (stickerFileId) {
-    try {
-      await sendSticker(messageObject.chat.id, stickerFileId);
-      console.log(`Webhook: Sticker de respuesta enviado a ${messageObject.chat.id}`);
-    } catch (e) {
-      console.error("Webhook: Error al enviar sticker de respuesta:", e);
+    const stickerFileId = MoeHandler.getRandomReplySticker();
+    if (stickerFileId) {
+      try {
+        await sendSticker(messageObject.chat.id, stickerFileId);
+      } catch (e) {
+        console.error("Webhook: Error al enviar sticker de respuesta:", e);
+      }
     }
-  } else {
-    console.log("Webhook: No hay stickers de respuesta configurados o no se pudo seleccionar uno.");
+    return res.status(200).send("OK");
   }
-  // Después de enviar el sticker, ¿quieres que el bot procese también el texto del reply como un comando o trigger moe?
-  // Si SÍ, comenta el siguiente `return` y deja que el código continúe.
-  // Si NO (solo envía el sticker y ya), deja el `return`.
-  return res.status(200).send("OK"); // Termina el procesamiento aquí por ahora.
-}
 
   const chatId = messageObject.chat.id;
   let text = messageObject.text || "";
   const userId = messageObject.from.id;
   const userFirstName = messageObject.from.first_name || "Usuario";
 
-  // Limpiar el @NombreDeTuBot de los comandos en grupos
   if (messageObject.chat.type === "group" || messageObject.chat.type === "supergroup") {
-    const botUsername = process.env.BOT_USERNAME; // Necesitarás añadir BOT_USERNAME a tus .env
+    const botUsername = process.env.BOT_USERNAME;
     if (botUsername && text.includes(`@${botUsername}`)) {
       text = text.replace(`@${botUsername}`, "").trim();
     }
   }
 
   console.log(`Webhook Procesado: ChatID=${chatId}, UserID=${userId}, Text="${text}"`);
+  let commandProcessed = false;
 
   try {
     if (text.startsWith("/start") || text.startsWith("/help")) {
       const helpText = MoeHandler.getHelpMessage(userFirstName);
       await sendMessage(chatId, helpText, "HTML");
+      commandProcessed = true;
     }
-    // --- Nuevos Comandos de MoeTasker ---
     else if (text.startsWith("/frase") || text.startsWith("/relax")) {
       const { phrase, kaomoji } = MoeHandler.getRandomFunPhrase();
       await sendMessage(chatId, `${phrase} ${kaomoji}`, "HTML");
+      commandProcessed = true;
     }
     else if (text.startsWith("/asignar")) {
       const argsText = text.substring("/asignar".length).trim();
       if (!argsText) {
-        await sendMessage(chatId, "Por favor, proporciona las tareas después del comando. Ejemplo: `/asignar Tarea A, Tarea B`", "HTML");
+        await sendMessage(chatId, `Por favor, proporciona las tareas después del comando. Ejemplo: ${code("/asignar Tarea A, Tarea B")} ${MoeHandler.getRandomKaomoji()}`, "HTML");
       } else {
         const taskDescriptions = argsText.split(',').map(desc => desc.trim()).filter(Boolean);
         if (!taskDescriptions.length) {
-          await sendMessage(chatId, "Debes proporcionar al menos una descripción de tarea válida.", "HTML");
+          await sendMessage(chatId, `Debes proporcionar al menos una descripción de tarea válida, ¿siii? ${MoeHandler.getRandomKaomoji()}`, "HTML");
         } else {
-          const initialMsgResponse = await sendMessage(chatId, "🎲 Iniciando asignación de tareas...");
+          const initialMsgResponse = await sendMessage(chatId, `🎲 ¡A la cargaaa! Asignando tareas... ${MoeHandler.getRandomKaomoji()}`);
           const initialMsgId = initialMsgResponse && initialMsgResponse.ok ? (await initialMsgResponse.json()).result.message_id : null;
           
           const diceResponse = await sendDice(chatId);
           const diceMsgId = diceResponse ? diceResponse.result.message_id : null;
 
-          await delay(3500); // Esperar animación del dado
-
+          await delay(3500);
           
-          if (initialMsgId) await editMessageText(chatId, initialMsgId, "⚙️ Procesando...");
+          if (initialMsgId) await editMessageText(chatId, initialMsgId, `⚙️ Procesando... ${MoeHandler.getRandomKaomoji()}`);
           await delay(1000);
 
           const result = await TaskManager.assignTasks(chatId, taskDescriptions);
           
-          // Borrar mensajes intermedios
           if (initialMsgId) await deleteMessage(chatId, initialMsgId);
           if (diceMsgId) await deleteMessage(chatId, diceMsgId);
           
           await sendMessage(chatId, result.message, "HTML");
         }
       }
+      commandProcessed = true;
     }
     else if (text.startsWith("/tareas")) {
       const summary = await TaskManager.getPendingTasksSummary();
       await sendMessage(chatId, summary, "HTML");
+      commandProcessed = true;
     }
     else if (text.startsWith("/clear_tasks")) {
-      const summary = ``;
-      if (TaskManager.clear_tasks()){
-        summary = `Todas las tareas eliminadas.` + escapeHTML(MoeHandler.getRandomFunPhrase().kaomoji);
+      let summaryMsg = ``;
+      const cleared = await TaskManager.clear_tasks(); // Asumimos que clear_tasks ahora es async
+      if (cleared){
+        summaryMsg = `¡Todas las tareas han desaparecido! ¡Puf! ✨ ${MoeHandler.getRandomKaomoji()}`;
+      } else {
+        summaryMsg = `Uups, no pude borrar las tareas esta vez... ${MoeHandler.getRandomKaomoji()}`;
       }
-      else{
-        summary = `Ocurrió un error al eliminar las tareas` + escapeHTML(MoeHandler.getRandomFunPhrase().kaomoji);
-      }
-
-      await sendMessage(chatId, summary, "HTML");
+      await sendMessage(chatId, summaryMsg, "HTML");
+      commandProcessed = true;
     }
-    // Para /completar ID y /completar_ID
     else if (text.startsWith("/completar")) {
       const matchWithSpace = text.match(/^\/completar\s+(\w+)/);
       const matchWithUnderscore = text.match(/^\/completar_(\w+)/);
       const taskId = matchWithSpace ? matchWithSpace[1] : (matchWithUnderscore ? matchWithUnderscore[1] : null);
 
       if (!taskId) {
-        await sendMessage(chatId, "Por favor, proporciona el ID de la tarea. Ejemplo: `/completar_abcdef12`", "HTML");
+        await sendMessage(chatId, `Porfi, dime el ID de la tarea que completaste ${MoeHandler.getRandomKaomoji()} Ejemplo: ${code("/completar_abcdef12")}`, "HTML");
       } else {
         const responseMsg = await TaskManager.completeTask(taskId, userId);
         await sendMessage(chatId, responseMsg, "HTML");
       }
+      commandProcessed = true;
     }
-
     else if (text.startsWith("/trabajo")) {
       if (messageObject.reply_to_message && messageObject.reply_to_message.document) {
-        // El comando es una respuesta a un mensaje con un documento
         const repliedMsg = messageObject.reply_to_message;
         const document = repliedMsg.document;
-
-        // Verificar extensión (opcional pero bueno)
         const fileName = document.file_name || "";
         if (fileName.toLowerCase().endsWith(".doc") || fileName.toLowerCase().endsWith(".docx")) {
           const result = await TaskManager.setPinnedWork(
-            repliedMsg.chat.id, // Chat ID del mensaje original del documento
-            repliedMsg.message_id, // Message ID del mensaje original del documento
-            document, // El objeto documento completo
-            userId // Quién lo fijó
+            repliedMsg.chat.id,
+            repliedMsg.message_id,
+            document,
+            userId
           );
           await sendMessage(chatId, result.message, "HTML");
         } else {
-          await sendMessage(chatId, escapeHTML("⚠️ Por favor, responde a un mensaje que contenga un archivo <code>.doc</code> o <code>.docx</code>."), "HTML");
+          await sendMessage(chatId, escapeHTML(`⚠️ ¡Atención! Solo puedo fijar archivos <code>.doc</code> o <code>.docx</code>, ¿vale? ${MoeHandler.getRandomKaomoji()}`), "HTML");
         }
       } else {
-        // El comando NO es una respuesta a un documento, o no es respuesta
-        // Intentar enviar el trabajo fijado si existe
         const result = await TaskManager.getPinnedWork();
         if (result.success && result.work) {
           const work = result.work;
-          await sendMessage(chatId, `📄 Aquí está el trabajo fijado actual ("${escapeHTML(work.fileName)}"):`, "HTML");
-          
-          // Opción 1: Reenviar el mensaje original (más simple si el bot tiene acceso)
-          // Necesitas que el bot esté en el mismo chat que work.chatId o que el mensaje sea de un canal público, etc.
-          // await forwardMessage(chatId, work.chatId, work.messageId);
-
-          // Opción 2: Enviar el documento por file_id (más robusto)
-          // El caption ya está en work.caption, y debería estar escapado si es necesario al guardarlo,
-          // o lo escapamos aquí. Por simplicidad, asumimos que es texto plano o ya escapado.
+          await sendMessage(chatId, `📄 ¡Aquí está el trabajo del proyecto que guardamos ("${escapeHTML(work.fileName)}")! ${MoeHandler.getRandomKaomoji()}`, "HTML");
           await sendDocumentByFileId(chatId, work.fileId, work.caption ? escapeHTML(work.caption) : null, "HTML");
-
         } else {
-          // No hay trabajo fijado, enviar el mensaje de getPinnedWork
-          await sendMessage(chatId, result.message, "HTML"); // result.message ya tiene el code()
+          await sendMessage(chatId, result.message, "HTML");
         }
       }
+      commandProcessed = true;
     }
-    // --- Fin Comando /trabajo ---
-
-    // ... (resto de tus comandos: /asignar, /tareas, /completar, /clear_tasks, /frase) ...
-
-    // --- Fin Nuevos Comandos ---
+    else if (text.startsWith("/guardar_decision")) {
+      const decisionText = text.substring("/guardar_decision".length).trim();
+      if (!decisionText) {
+        await sendMessage(chatId, `Debes decirme qué decisión guardar, pls ${MoeHandler.getRandomKaomoji()}`, "HTML");
+      } else {
+        const result = await OracleManager.saveOracleDecision(chatId, messageObject.message_id, userId, userFirstName, decisionText);
+        await sendMessage(chatId, result.message, "HTML");
+      }
+      commandProcessed = true;
+    }
+    else if (text.startsWith("/oraculo")) {
+      const questionText = text.substring("/oraculo".length).trim();
+      if (questionText) {
+         await sendMessage(chatId, `El Oráculo está consultando las estrellas... ${MoeHandler.getRandomKaomoji()} Espérame un poquito~`, "HTML");
+         await delay(1500); // Pequeña pausa para el efecto
+      }
+      const oracleResponse = await OracleManager.queryOracle(questionText);
+      await sendMessage(chatId, oracleResponse, "HTML");
+      commandProcessed = true;
+    }
     else {
-      // Manejo de texto para Moe (si no es comando)
       const moeResponse = MoeHandler.getMoeResponse(text);
       if (moeResponse) {
         await sendMessage(chatId, moeResponse, "HTML");
-      } else {
-        // Si no es ningún comando conocido ni trigger moe, podrías responder con un "no entiendo"
-        // o simplemente no hacer nada, o llamar a tu sendMessage(chatId, text) original como fallback.
-        // Por ahora, si no es nada, no haremos nada para evitar eco.
-        // await sendMessage(chatId, `No entendí: "${text}"`);
-        console.log("Webhook: Texto no reconocido como comando o trigger moe.");
+        commandProcessed = true;
       }
     }
+
+    if (!commandProcessed && messageObject && messageObject.text && messageObject.text.trim() !== "" && !messageObject.from.is_bot) {
+        await OracleManager.storeMessageForOracle(messageObject);
+    }
+    
     res.status(200).send("OK");
 
   } catch (error) {
     console.error("Webhook Error:", error);
-    // Evitar enviar detalles del error al cliente/Telegram
     res.status(500).send("Internal Server Error");
   }
 }
