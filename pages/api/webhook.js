@@ -3,6 +3,7 @@ import { sendMessage, sendDice, deleteMessage, editMessageText, forwardMessage, 
 import * as TaskManager from "@/lib/services/taskManager";
 import * as MoeHandler from "@/lib/services/moeHandler";
 import * as OracleManager from "@/lib/services/oracleManager";
+import { randomBytes } from 'crypto';
 import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
 
 export const config = {
@@ -20,6 +21,10 @@ const NEGATION_KEYWORDS = ["no", "nunca", "tampoco"];
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+function generateSuggestionKey() {
+  return randomBytes(8).toString('hex'); // Genera 16 caracteres hexadecimales
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader('Allow', ['POST']);
@@ -35,35 +40,52 @@ export default async function handler(req, res) {
   
   if (update.callback_query) {
     const cq = update.callback_query;
-    messageObject = cq.message;
+    // messageObject es el mensaje DEL BOT con los botones
+    const botMessageObject = cq.message;
     const callbackQueryData = cq.data;
-    const userFromCallback = cq.from;
-    const originalChatId = messageObject.chat.id;
-    const originalMessageId = messageObject.message_id;
+    const userFromCallback = cq.from; // Quién presionó el botón
+    const originalChatId = botMessageObject.chat.id;
+    const originalMessageId = botMessageObject.message_id;
+
 
     console.log("Webhook: CallbackQuery. Data:", callbackQueryData, "UserID:", userFromCallback.id);
 
     try {
-      if (callbackQueryData.startsWith("create_task_confirm:")) {
-        const encodedTaskDesc = callbackQueryData.split(":")[1];
-        const taskDescription = decodeURIComponent(encodedTaskDesc);
+      if (callbackQueryData.startsWith("create_task_confirm_sugg:")) {
+        const suggestionKey = callbackQueryData.split(":")[1];
         
-        const result = await TaskManager.assignTasks(originalChatId, [taskDescription]);
-        let confirmationText = `¡Entendido! ${MoeHandler.getRandomKaomoji()} He creado la tareíta: "${escapeHTML(taskDescription)}".`;
-        if (result.message && result.message.includes("Asignada a:")) {
-            confirmationText += `\n${result.message}`;
-        }
-
-        await editMessageText(
-          originalChatId,
-          originalMessageId,
-          confirmationText.trim(),
-          "HTML",
-          null // Quitar teclado
+        // Recuperar la descripción de la BD temporal
+        const suggestionResult = await query(
+          `SELECT full_description FROM temporary_task_suggestions WHERE suggestion_key = $1`,
+          [suggestionKey]
         );
-        await answerCallbackQuery(cq.id, { text: "¡Tarea creada! ✨" });
+        if (suggestionResult.rows.length > 0) {
+          const taskDescription = suggestionResult.rows[0].full_description;
+          
+          const result = await TaskManager.assignTasks(originalChatId, [taskDescription]);
+          let confirmationText = `¡Entendido! ${MoeHandler.getRandomKaomoji()} He creado la tareíta: "${escapeHTML(taskDescription)}".`;
+          if (result.message && result.message.includes("Asignada a:")) {
+              confirmationText += `\n${result.message}`;
+          }
 
+          await editMessageText(
+            originalChatId,
+            originalMessageId,
+            confirmationText.trim(),
+            "HTML",
+            null // Quitar teclado
+          );
+
+          await answerCallbackQuery(cq.id, { text: "¡Tarea creada! ✨" });
+
+          await query(`DELETE FROM temporary_task_suggestions WHERE suggestion_key = $1`, [suggestionKey]);
+
+        } else {
+          await editMessageText(originalChatId,originalMessageId,`¡Ups! ${MoeHandler.getRandomKaomoji()} Ya no recuerdo esa sugerencia... quizás expiró. Gomen~`, "HTML", null);
+          await answerCallbackQuery(cq.id, { text: "Sugerencia no encontrada (つω`｡)" });
+        }
       } else if (callbackQueryData === "create_task_cancel") {
+
         await editMessageText(
           originalChatId,
           originalMessageId,
@@ -73,11 +95,12 @@ export default async function handler(req, res) {
         );
         await answerCallbackQuery(cq.id, { text: "Cancelado ( ´ ∀ ` )ﾉ" });
       }
-      // Aquí irían otros manejadores de callback_query futuros
+      // ...
     } catch (error) {
         console.error("Error procesando callback_query:", error);
         await answerCallbackQuery(cq.id, { text: "¡Ups! Algo salió mal (つω`｡)" });
     }
+
     return res.status(200).send("OK");
   }
 
