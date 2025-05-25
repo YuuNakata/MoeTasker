@@ -3,6 +3,7 @@ import { sendMessage, sendDice, deleteMessage, editMessageText, forwardMessage, 
 import * as TaskManager from "@/lib/services/taskManager";
 import * as MoeHandler from "@/lib/services/moeHandler";
 import * as OracleManager from "@/lib/services/oracleManager";
+import * as GitHubStatsService from '@/lib/services/gitHubStatsService'; // Nueva importación
 import { query } from '@/lib/db';
 import { randomBytes } from 'crypto';
 import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
@@ -278,6 +279,67 @@ export default async function handler(req, res) {
       const oracleResponse = await OracleManager.queryOracle(questionText);
       await sendMessage(chatId, oracleResponse, "HTML");
       commandProcessed = true;
+    }
+    else if (text.startsWith("/repo_stats")) {
+      const GITHUB_PAT = process.env.GITHUB_PAT;
+      const GITHUB_REPO_OWNER = process.env.GITHUB_REPO_OWNER;
+      const GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME;
+
+      if (!GITHUB_PAT || !GITHUB_REPO_OWNER || !GITHUB_REPO_NAME) {
+        await sendMessage(chatId, `¡Nya~! ${MoeHandler.getRandomKaomoji()} La configuración para estadísticas del repo está incompleta. Avisa a mi creador~`, "HTML");
+        commandProcessed = true;
+      } else {
+        const args = text.substring("/repo_stats".length).trim().toLowerCase().split(" ");
+        let period = args[0] || 'semana'; // 'semana', 'mes', 'total'
+        let branch = args[1] || 'main'; // o la rama por defecto que prefieras
+        let sinceISO = '';
+        const now = new Date();
+
+        if (period === 'semana') {
+          now.setDate(now.getDate() - 7);
+          sinceISO = now.toISOString();
+        } else if (period === 'mes') {
+          now.setMonth(now.getMonth() - 1);
+          sinceISO = now.toISOString();
+        } else if (period === 'total') {
+          sinceISO = ''; // Traer todos los commits (puede ser muy lento/intensivo)
+        } else {
+          // Si no es un periodo reconocido, por defecto a semana y asumimos que 'period' era el nombre de la rama
+          if (args[0]) branch = args[0]; // si hay algo en args[0] y no es semana/mes/total, es la rama
+          period = 'semana'; // default a semana
+          now.setDate(now.getDate() - 7);
+          sinceISO = now.toISOString();
+        }
+
+        await sendMessage(chatId, `🔍 Analizando actividad del repositorio ${code(GITHUB_REPO_NAME)} para la ${bold(period)} en la rama ${code(branch)}... ¡Un momentito, sempai! ${MoeHandler.getRandomKaomoji()}`, "HTML");
+        
+        try {
+          const stats = await GitHubStatsService.getRepoContributionStats(GITHUB_REPO_OWNER, GITHUB_REPO_NAME, GITHUB_PAT, sinceISO, branch);
+
+          if (!stats || Object.keys(stats).length === 0) {
+            await sendMessage(chatId, `No encontré actividad reciente para el periodo y rama especificados. ${MoeHandler.getRandomKaomoji()}`, "HTML");
+          } else {
+            let responseText = `${bold(`Estadísticas de Contribución para ${escapeHTML(GITHUB_REPO_NAME)} (${escapeHTML(branch)}) - Última ${period}`)}:\n\n`;
+            const sortedContributors = Object.values(stats).sort((a, b) => b.totalModifications - a.totalModifications);
+            
+            let totalOverallModifications = 0;
+            sortedContributors.forEach(c => totalOverallModifications += c.totalModifications);
+
+            for (const contributor of sortedContributors) {
+              const percentage = totalOverallModifications > 0 ? ((contributor.totalModifications / totalOverallModifications) * 100).toFixed(1) : 0;
+              responseText += `${bold(escapeHTML(contributor.name))}:\n`;
+              responseText += `  Commits: ${code(contributor.commits)}\n`;
+              responseText += `  Líneas Modificadas: ${code(contributor.totalModifications)} (+${contributor.additions} / -${contributor.deletions})\n`;
+              responseText += `  Actividad: ${code(percentage + '%')}\n---\n`;
+            }
+            await sendMessage(chatId, responseText, "HTML");
+          }
+        } catch (error) {
+          console.error("Error al obtener estadísticas del repo:", error);
+          await sendMessage(chatId, `¡Gomen nasai! ${MoeHandler.getRandomKaomoji()} Tuve problemas para obtener las estadísticas del repo. Revisa los logs, onegai~`, "HTML");
+        }
+        commandProcessed = true;
+      }
     }
     else { // No es un comando explícito
       const moeResponse = MoeHandler.getMoeResponse(text);
