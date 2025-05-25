@@ -91,7 +91,7 @@ export default async function handler(req, res) {
         await editMessageText(
           originalChatId,
           originalMessageId,
-          `¡De acuerdo, sempai! ${MoeHandler.getRandomKaomoji()} No crearé la tarea esta vez. Si cambias de opinión, ¡ya sabes dónde encontrarme!`,
+          `¡De acuerdo, senpai! ${MoeHandler.getRandomKaomoji()} No crearé la tarea esta vez. Si cambias de opinión, ¡ya sabes dónde encontrarme!`,
           "HTML",
           null // Quitar teclado
         );
@@ -311,7 +311,7 @@ export default async function handler(req, res) {
           sinceISO = now.toISOString();
         }
 
-        await sendMessage(chatId, `🔍 Analizando actividad del repositorio ${code(GITHUB_REPO_NAME)} para la ${bold(period)} en la rama ${code(branch)}... ¡Un momentito, sempai! ${MoeHandler.getRandomKaomoji()}`, "HTML");
+        await sendMessage(chatId, `🔍 Analizando actividad del repositorio ${code(GITHUB_REPO_NAME)} para la ${bold(period)} en la rama ${code(branch)}... ¡Un momentito, senpai! ${MoeHandler.getRandomKaomoji()}`, "HTML");
         
         try {
           const stats = await GitHubStatsService.getRepoContributionStats(GITHUB_REPO_OWNER, GITHUB_REPO_NAME, GITHUB_PAT, sinceISO, branch);
@@ -319,19 +319,32 @@ export default async function handler(req, res) {
           if (!stats || Object.keys(stats).length === 0) {
             await sendMessage(chatId, `No encontré actividad reciente para el periodo y rama especificados. ${MoeHandler.getRandomKaomoji()}`, "HTML");
           } else {
-            let responseText = `${bold(`Estadísticas de Contribución para ${escapeHTML(GITHUB_REPO_NAME)} (${escapeHTML(branch)}) - Última ${period}`)}:\n\n`;
+            let responseText = `${bold(`📊 Estadísticas de Contribución para ${escapeHTML(GITHUB_REPO_NAME)} (${escapeHTML(branch)}) - Última ${period}`)}:\n\n`;
             const sortedContributors = Object.values(stats).sort((a, b) => b.totalModifications - a.totalModifications);
             
             let totalOverallModifications = 0;
             sortedContributors.forEach(c => totalOverallModifications += c.totalModifications);
 
-            for (const contributor of sortedContributors) {
-              const percentage = totalOverallModifications > 0 ? ((contributor.totalModifications / totalOverallModifications) * 100).toFixed(1) : 0;
-              responseText += `${bold(escapeHTML(contributor.name))}:\n`;
-              responseText += `  Commits: ${code(contributor.commits)}\n`;
-              responseText += `  Líneas Modificadas: ${code(contributor.totalModifications)} (+${contributor.additions} / -${contributor.deletions})\n`;
-              responseText += `  Actividad: ${code(percentage + '%')}\n---\n`;
+            // Helper function for progress bar
+            function generateProgressBar(percentage, length = 10) {
+              const filledLength = Math.round((percentage / 100) * length);
+              const emptyLength = length - filledLength;
+              const filledChars = '█'.repeat(filledLength);
+              const emptyChars = '░'.repeat(emptyLength);
+              return `[${filledChars}${emptyChars}]`;
             }
+
+            sortedContributors.forEach((contributor, index) => {
+              const percentage = totalOverallModifications > 0 ? ((contributor.totalModifications / totalOverallModifications) * 100).toFixed(1) : "0.0";
+              const trophy = index === 0 ? '🏆 ' : '';
+              responseText += `${trophy}${bold(escapeHTML(contributor.name))}:\n`;
+              responseText += `  🗳️ Commits: ${code(contributor.commits)}\n`;
+              responseText += `  <0xF0><0x9F><0x93><0x88> Líneas Modificadas: ${code(contributor.totalModifications)} ${code('(+'+contributor.additions+' / -'+contributor.deletions+')')}\n`;
+              responseText += `  <0xF0><0x9F><0x9A><0x80> Actividad: ${code(generateProgressBar(parseFloat(percentage)) + ' ' + percentage + '%')}\n`;
+              if (index < sortedContributors.length - 1) {
+                responseText += `------------------------------------\n`;
+              }
+            });
             await sendMessage(chatId, responseText, "HTML");
           }
         } catch (error) {
@@ -411,7 +424,7 @@ export default async function handler(req, res) {
             : escapeHTML(potentialTaskDescription);
 
 
-          const messageText = `¡Oído cocina! (๑•̀ㅂ•́)و✧ Detecté que mencionaste "${italic(escapedOriginalTextPreview)}". ¿Debería crear una tareíta para "${italic(escapeHTML(potentialTaskDescription))}", sempai?`;
+          const messageText = `¡Oído cocina! (๑•̀ㅂ•́)و✧ Detecté que mencionaste "${italic(escapedOriginalTextPreview)}". ¿Debería crear una tareíta para "${italic(escapeHTML(potentialTaskDescription))}", senpai?`;
           
           const inlineKeyboard = {
             inline_keyboard: [
