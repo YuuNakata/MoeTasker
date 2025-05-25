@@ -339,8 +339,8 @@ export default async function handler(req, res) {
               const trophy = index === 0 ? '🏆 ' : '';
               responseText += `${trophy}${bold(escapeHTML(contributor.name))}:\n`;
               responseText += `  🗳️ Commits: ${code(contributor.commits)}\n`;
-              responseText += `  <0xF0><0x9F><0x93><0x88> Líneas Modificadas: ${code(contributor.totalModifications)} ${code('(+'+contributor.additions+' / -'+contributor.deletions+')')}\n`;
-              responseText += `  <0xF0><0x9F><0x9A><0x80> Actividad: ${code(generateProgressBar(parseFloat(percentage)) + ' ' + percentage + '%')}\n`;
+              responseText += `  💹 Líneas Modificadas: ${code(contributor.totalModifications)} ${code('(+'+contributor.additions+' / -'+contributor.deletions+')')}\n`;
+              responseText += `  🚀 Actividad: ${code(generateProgressBar(parseFloat(percentage)) + ' ' + percentage + '%')}\n`;
               if (index < sortedContributors.length - 1) {
                 responseText += `------------------------------------\n`;
               }
