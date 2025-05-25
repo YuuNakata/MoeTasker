@@ -287,6 +287,15 @@ export default async function handler(req, res) {
       }
     }
 
+    // Integrar respuesta por palabras clave (saludos/despedidas)
+    if (!commandProcessed) {
+      const keywordResponse = MoeHandler.getKeywordResponse(text);
+      if (keywordResponse) {
+        await sendMessage(chatId, keywordResponse, "HTML");
+        commandProcessed = true; // Se envió una respuesta específica
+      }
+    }
+
     // Detector de Tareas Implícitas
     if (!commandProcessed && messageObject && messageObject.text && !messageObject.from.is_bot) {
       const textToAnalyze = messageObject.text.toLowerCase();
@@ -365,6 +374,37 @@ export default async function handler(req, res) {
     // Guardar en Oráculo si no fue comando y no se sugirió tarea (o según prefieras)
     if (!commandProcessed && !suggestionProcessed && messageObject && messageObject.text && messageObject.text.trim() !== "" && !messageObject.from.is_bot) {
         await OracleManager.storeMessageForOracle(messageObject);
+    }
+
+    // Fallback de Sticker Mejorado
+    if (!commandProcessed && !suggestionProcessed) {
+      let shouldSendSticker = false;
+
+      // Condición 1: Es una respuesta directa al bot
+      if (messageObject.reply_to_message &&
+          messageObject.reply_to_message.from &&
+          messageObject.reply_to_message.from.is_bot &&
+          messageObject.reply_to_message.from.username === process.env.BOT_USERNAME) {
+        shouldSendSticker = true;
+      }
+      // Condición 2: Es un mensaje general en el chat (no una respuesta a otro usuario humano)
+      // y no es un mensaje vacío, y no es del propio bot.
+      else if (!messageObject.reply_to_message &&
+               messageObject.text && messageObject.text.trim() !== "" &&
+               !messageObject.from.is_bot) {
+        shouldSendSticker = true;
+      }
+
+      if (shouldSendSticker) {
+        const stickerFileId = MoeHandler.getRandomReplySticker();
+        if (stickerFileId) {
+          try {
+            await sendSticker(chatId, stickerFileId);
+          } catch (e) {
+            console.error("Webhook: Error al enviar sticker de fallback:", e);
+          }
+        }
+      }
     }
     
     res.status(200).send("OK");

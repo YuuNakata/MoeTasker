@@ -43,7 +43,6 @@
     "FTI: Donde el café es fuerte, pero las ganas de rendirse lo son más. ☕🫠",
     "Si logras sobrevivir a la FTI, puedes sobrevivir a cualquier sprint. 🧠🔥",
     "FTI: Facultad de los Tristes Infelices... pero con un sistema que sí funciona. 😉"
-
   ],
   "kaomoji_expressions": [
     "( ´ ∀ ` )",
@@ -120,5 +119,25 @@
     "Fuaaaa~ después de tanto testeo, ¡por fin pasó CI! (=^-ω-^=)",
     "Nya~ Las solicitudes fueron aprobadas sin conflictos. ¡Miau-tástico!",
     "Fuwaaa~ No olviden dormir, incluso los programadores moe descansan. (∪｡∪)｡｡｡zzz"
-  ]
+  ],
+  "greetings": {
+    "keywords": ["hola", "buenas", "buenos dias", "buenas tardes", "buenas noches", "hey", "que tal", "saludos"],
+    "responses": [
+      "¡Hola! ¿Cómo estás hoy? (＾▽＾)",
+      "¡Hey! ¿Qué se cuenta? ✨",
+      "¡Buenas! ¿Listo para la acción? (o･ω･o)",
+      "¡Hola, hola! ¡Qué alegría verte por aquí! ヾ(〃^∇^)ﾉ",
+      "¡Saludos! ¿En qué puedo ayudarte? (* ^ ω ^)"
+    ]
+  },
+  "farewells": {
+    "keywords": ["adios", "hasta luego", "chao", "nos vemos", "bye", "hasta la proxima"],
+    "responses": [
+      "¡Adiós! ¡Que tengas un excelente día! (* ^ ω ^)",
+      "¡Hasta luego! ¡Cuídate mucho! 👋",
+      "¡Chao, chao! ¡Nos vemos pronto! ( ´ ∀ ` )",
+      "¡Bye! ¡Fue un placer! ✨",
+      "¡Hasta la próxima! ¡No tardes en volver! (づ｡◕‿‿◕｡)づ"
+    ]
+  }
 }
