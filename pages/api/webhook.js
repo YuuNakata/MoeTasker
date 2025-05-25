@@ -454,19 +454,11 @@ export default async function handler(req, res) {
     // Fallback de Sticker Mejorado
     if (!commandProcessed && !suggestionProcessed) {
       let shouldSendSticker = false;
-
-      // Condición 1: Es una respuesta directa al bot
+      // Condición ÚNICA: Es una respuesta directa al bot
       if (messageObject.reply_to_message &&
           messageObject.reply_to_message.from &&
           messageObject.reply_to_message.from.is_bot &&
-          messageObject.reply_to_message.from.username === process.env.BOT_USERNAME) {
-        shouldSendSticker = true;
-      }
-      // Condición 2: Es un mensaje general en el chat (no una respuesta a otro usuario humano)
-      // y no es un mensaje vacío, y no es del propio bot.
-      else if (!messageObject.reply_to_message &&
-               messageObject.text && messageObject.text.trim() !== "" &&
-               !messageObject.from.is_bot) {
+          messageObject.reply_to_message.from.username === process.env.BOT_USERNAME) { // Comparar con el username del bot
         shouldSendSticker = true;
       }
 
