@@ -291,7 +291,7 @@ export default async function handler(req, res) {
     if (!commandProcessed) {
       const keywordResponse = MoeHandler.getKeywordResponse(text);
       if (keywordResponse) {
-        await sendMessage(chatId, keywordResponse, "HTML");
+        await sendMessage(chatId, keywordResponse, "HTML", false, null, messageObject.message_id);
         commandProcessed = true; // Se envió una respuesta específica
       }
     }
