@@ -8,6 +8,7 @@ import { query } from '@/lib/db';
 import { randomBytes } from 'crypto';
 import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
 import { getAiResponse } from './chat';
+import { getMemberById } from '@/lib/services/teamManager';
 
 export const config = {
   maxDuration: 60,
@@ -474,8 +475,9 @@ export default async function handler(req, res) {
             content: currentUserMessageContent
           });
 
-          // 3. Llamar a la lógica de la IA directamente
-          const aiText = await getAiResponse(formattedMessages);
+          // 3. Identificar al usuario y llamar a la lógica de la IA
+          const speakingUser = getMemberById(userId);
+          const aiText = await getAiResponse(formattedMessages, speakingUser);
 
           if (aiText) {
             // 4. Enviar la respuesta de la IA a Telegram

@@ -1,0 +1,27 @@
+{
+  "CLAUDIA": {
+    "displayName": "Claudia",
+    "role": "No Developer",
+    "bio": "Le gustan todos los animales , sus conocimientos de desarrollo web son escasos por lo que hay que recordarle que estudie,se la pasa durmiendo , jugando y sin estudiar"
+  },
+  "GRETTEL": {
+    "displayName": "Grettel",
+    "role": "No Developer",
+    "bio": "Le falta conocimientos de desarrollo web , es fan de los juegos como Skyrim y se estresa con mucha facilidad y cuando lo hace se queda jugando"
+  },
+  "ERNESTO": {
+    "displayName": "Ernesto",
+    "role": "DevOps Engineer",
+    "bio": "Es el locutor del equipo pero le falta conocimiento en desarrollo web,usa muchos stickers y es fan de los juegos gachas como Genshin"
+  },
+  "JAVIER": {
+    "displayName": "Javier",
+    "role": "FULL STACK",
+    "bio": "Le gusta programar juegos y es bueno en desarrollo web dado que aprendio hace poco"
+  },
+  "RAYDEL": {
+    "displayName": "Ray",
+    "role": "Project Lead",
+    "bio": "Es el creador de Moe,se encarga de dirigir al equipo"
+  }
+}
