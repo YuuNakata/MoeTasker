@@ -480,8 +480,20 @@ export default async function handler(req, res) {
           const aiText = await getAiResponse(formattedMessages, speakingUser);
 
           if (aiText) {
-            // 4. Enviar la respuesta de la IA a Telegram
-            await sendMessage(chatId, aiText, "MarkdownV2");
+            // 4. Escapar el texto para MarkdownV2, pero ignorando los bloques de código.
+            const parts = aiText.split(/(```[\s\S]*?```)/g);
+            const escapedParts = parts.map((part, index) => {
+              // Si la parte es un bloque de código (índice impar), no la escapamos.
+              if (index % 2 === 1) {
+                return part;
+              }
+              // Si es texto normal, la escapamos.
+              return MoeHandler.escapeMarkdownV2(part);
+            });
+            const escapedText = escapedParts.join('');
+
+            // 5. Enviar la respuesta de la IA a Telegram
+            await sendMessage(chatId, escapedText, "MarkdownV2");
             aiReplied = true; // ¡La IA ha hablado! Marcamos la bandera.
           }
 
