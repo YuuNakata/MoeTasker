@@ -482,8 +482,8 @@ export default async function handler(req, res) {
 
           // 3. Llamar al endpoint de la IA
           // Usamos la URL completa porque estamos en el entorno de servidor de Vercel
-          const vercelUrl = process.env.VERCEL_URL || 'http://localhost:3000';
-          const aiResponse = await fetch(`${vercelUrl}/api/chat`, {
+          const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+          const aiResponse = await fetch(`${baseUrl}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ messages: formattedMessages })
