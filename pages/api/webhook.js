@@ -499,6 +499,9 @@ export default async function handler(req, res) {
       }
     }
 
+    /* --- STICKER FALLBACK DESACTIVADO TEMPORALMENTE ---
+    // La idea es reactivar esto en el futuro con una lógica que 
+    // elija un sticker según el 'mood' de la conversación.
     // Fallback de Sticker (solo si la IA no ha respondido y es un reply)
     if (!commandProcessed && !suggestionProcessed && !aiReplied && messageObject) {
       const isReplyToBot = messageObject.reply_to_message &&
@@ -517,6 +520,7 @@ export default async function handler(req, res) {
         }
       }
     }
+    */
     
     res.status(200).send("OK");
 
