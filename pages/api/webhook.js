@@ -451,25 +451,59 @@ export default async function handler(req, res) {
         await OracleManager.storeMessageForOracle(messageObject);
     }
 
-    // Fallback de Sticker Mejorado
-    if (!commandProcessed && !suggestionProcessed) {
-      let shouldSendSticker = false;
-      // Condición ÚNICA: Es una respuesta directa al bot
-      if (messageObject.reply_to_message &&
-          messageObject.reply_to_message.from &&
-          messageObject.reply_to_message.from.is_bot &&
-          messageObject.reply_to_message.from.username === process.env.BOT_USERNAME) { // Comparar con el username del bot
-        shouldSendSticker = true;
-      }
+    // --- Integración de IA para Respuestas Conversacionales ---
+    if (!commandProcessed && !suggestionProcessed && messageObject && messageObject.text && !messageObject.from.is_bot) {
+      const botUsername = process.env.BOT_USERNAME || 'MoeTasker'; // Fallback por si no está en .env
+      const messageText = messageObject.text.toLowerCase();
 
-      if (shouldSendSticker) {
-        const stickerFileId = MoeHandler.getRandomReplySticker();
-        if (stickerFileId) {
-          try {
-            await sendSticker(chatId, stickerFileId);
-          } catch (e) {
-            console.error("Webhook: Error al enviar sticker de fallback:", e);
+      const isReplyToBot = messageObject.reply_to_message &&
+                           messageObject.reply_to_message.from &&
+                           messageObject.reply_to_message.from.is_bot &&
+                           messageObject.reply_to_message.from.username === botUsername;
+
+      const isMentioningBot = messageText.includes('moe');
+
+      if (isReplyToBot || isMentioningBot) {
+        try {
+          // 1. Obtener historial de la conversación desde el Oráculo
+          const recentMessages = await OracleManager.getRecentMessages(chatId, 10);
+
+          // 2. Formatear mensajes para la API de IA
+          const formattedMessages = recentMessages.map(msg => ({
+            role: msg.is_bot ? 'assistant' : 'user',
+            content: msg.text
+          }));
+          
+          // Añadir el mensaje actual
+          formattedMessages.push({
+            role: 'user',
+            content: messageObject.text
+          });
+
+          // 3. Llamar al endpoint de la IA
+          // Usamos la URL completa porque estamos en el entorno de servidor de Vercel
+          const vercelUrl = process.env.VERCEL_URL || 'http://localhost:3000';
+          const aiResponse = await fetch(`${vercelUrl}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: formattedMessages })
+          });
+
+          if (aiResponse.ok) {
+            const aiText = await aiResponse.text();
+            if (aiText) {
+              // 4. Enviar la respuesta de la IA a Telegram
+              await sendMessage(chatId, aiText, "HTML");
+            }
+          } else {
+              const errorText = await aiResponse.text();
+              console.error("Webhook: Error al llamar a /api/chat:", aiResponse.status, errorText);
           }
+
+        } catch (aiError) {
+          console.error("Webhook: Error en el bloque de IA conversacional:", aiError);
+          // Opcional: enviar un mensaje de error si la IA falla
+          // await sendMessage(chatId, `¡Gomen, senpai! Mis circuitos de IA fallaron... ${MoeHandler.getRandomKaomoji()}`);
         }
       }
     }
