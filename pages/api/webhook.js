@@ -1,5 +1,5 @@
 // pages/api/webhook.js
-import { sendMessage, sendDice, deleteMessage, editMessageText, forwardMessage, sendDocumentByFileId, sendSticker, answerCallbackQuery } from "@/utils/telegram";
+import { sendMessage, sendDice, deleteMessage, editMessageText, forwardMessage, sendDocumentByFileId, sendSticker, answerCallbackQuery, sendChatAction } from "@/utils/telegram";
 import * as TaskManager from "@/lib/services/taskManager";
 import * as MoeHandler from "@/lib/services/moeHandler";
 import * as OracleManager from "@/lib/services/oracleManager";
@@ -475,7 +475,10 @@ export default async function handler(req, res) {
             content: currentUserMessageContent
           });
 
-          // 3. Identificar al usuario y llamar a la lógica de la IA
+          // 3. Mostrar el indicador "escribiendo..."
+          await sendChatAction(chatId);
+
+          // 4. Identificar al usuario y llamar a la lógica de la IA
           const speakingUser = getMemberById(userId);
           const aiText = await getAiResponse(formattedMessages, speakingUser);
 

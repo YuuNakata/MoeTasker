@@ -1,5 +1,28 @@
 // utils/telegram.js
-const TELEGRAM_API_URL = `https://api.telegram.org/bot${process.env.BOT_TOKEN}`; // Cambiado a TELEGRAM_BOT_TOKEN como en tu webhook
+const TELEGRAM_API_URL = `https://api.telegram.org/bot${process.env.BOT_TOKEN}`;
+
+export async function sendChatAction(chatId, action = 'typing') {
+    const url = `${TELEGRAM_API_URL}/sendChatAction`;
+    const body = {
+        chat_id: chatId,
+        action: action,
+    };
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (!response.ok) {
+            console.error("Failed to send chat action. Status:", response.status, "Body:", await response.text());
+        }
+        return response;
+    } catch (err) {
+        console.error("Error occurred while sending chat action", err);
+        return null;
+    }
+} // Cambiado a TELEGRAM_BOT_TOKEN como en tu webhook
 
 export async function sendMessage(chatid, text, parseMode = "HTML", silent = false, replyMarkup = null) {
     const url = `${TELEGRAM_API_URL}/sendMessage`;
