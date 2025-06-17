@@ -9,19 +9,7 @@ const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY,
 });
 
-// Lista de Kaomojis para darle personalidad al bot
-const kaomojis = [
-    '(＾▽＾)', '(´｡• ᵕ •｡`)', '(o^▽^o)', '(´• ω •`)', '( ´ ▽ ` )ﾉ',
-    '(*^▽^*)', '(o･ω･o)', '(^w^)', '(´∀`)', '(´｡• ᵕ •｡`) ♡',
-    '(⁄ ⁄>⁄ ▽ ⁄<⁄ ⁄)', '(つω`｡)', '(´；ω；`)', '(o;TωT)o',
-    '(´-ω-`)', '(￣o￣) zzZ', '( ´_ゝ`)', '(・_・;)', '(¬_¬)',
-    'Σ(°ロ°)', '(⊙_⊙)', '(O_O;)', '٩(｡•́‿•̀｡)۶', '(*•̀ᴗ•́*)و ̑̑',
-    '(๑•̀ㅂ•́)و✧', 'd(￣◇￣)b', '(-ω-ゞ', '(シ_ _)シ'
-];
 
-function getRandomKaomoji() {
-    return kaomojis[Math.floor(Math.random() * kaomojis.length)];
-}
 
 /**
  * Genera el prompt del sistema para la IA de forma centralizada.
