@@ -125,21 +125,7 @@ export default async function handler(req, res) {
     return res.status(200).send("OK"); 
   }
 
-  if (messageObject.reply_to_message && 
-    messageObject.reply_to_message.from && 
-    messageObject.reply_to_message.from.is_bot &&
-    messageObject.reply_to_message.from.username === process.env.BOT_USERNAME) {
-  
-    const stickerFileId = MoeHandler.getRandomReplySticker();
-    if (stickerFileId) {
-      try {
-        await sendSticker(messageObject.chat.id, stickerFileId);
-      } catch (e) {
-        console.error("Webhook: Error al enviar sticker de respuesta:", e);
-      }
-    }
-    return res.status(200).send("OK");
-  }
+  // Bloque de stickers de respuesta rápida eliminado para dar prioridad a la lógica de IA.
 
   const chatId = messageObject.chat.id;
   let text = messageObject.text || "";
@@ -476,10 +462,16 @@ export default async function handler(req, res) {
             content: msg.text
           }));
           
-          // Añadir el mensaje actual
+          // Añadir el mensaje actual, dando más contexto si es una respuesta
+          let currentUserMessageContent = messageObject.text;
+          if (isReplyToBot && messageObject.reply_to_message && messageObject.reply_to_message.text) {
+            // Damos a la IA el contexto directo del mensaje al que se responde para mayor relevancia.
+            currentUserMessageContent = `(Respondiendo a tu mensaje: "${messageObject.reply_to_message.text}")\n\n${messageObject.text}`;
+          }
+
           formattedMessages.push({
             role: 'user',
-            content: messageObject.text
+            content: currentUserMessageContent
           });
 
           // 3. Llamar a la lógica de la IA directamente
