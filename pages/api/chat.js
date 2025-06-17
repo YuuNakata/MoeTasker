@@ -57,7 +57,7 @@ export async function getAiResponse(messages, speakingUser = null) {
 
     try {
         const response = await groq.chat.completions.create({
-            model: 'llama3-8b-8192',
+            model: 'llama3-70b-8192',
             // No usaremos stream aquí para obtener el texto completo directamente
             stream: false,
             messages: [systemPrompt, ...messages],
@@ -83,7 +83,7 @@ export default async function handler(req) {
 
     try {
         const response = await groq.chat.completions.create({
-            model: 'llama3-8b-8192',
+            model: 'llama3-70b-8192',
             stream: true,
             messages: [systemPrompt, ...messages],
         });
