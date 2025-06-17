@@ -35,6 +35,7 @@ export default async function handler(req, res) {
   }
   
   const update = req.body;
+  let aiReplied = false; // Flag para saber si la IA ya respondió
 
   let messageObject = update.message || 
                       update.edited_message || 
@@ -487,12 +488,32 @@ export default async function handler(req, res) {
           if (aiText) {
             // 4. Enviar la respuesta de la IA a Telegram
             await sendMessage(chatId, aiText, "HTML");
+            aiReplied = true; // ¡La IA ha hablado! Marcamos la bandera.
           }
 
         } catch (aiError) {
           console.error("Webhook: Error en el bloque de IA conversacional:", aiError);
           // Opcional: enviar un mensaje de error si la IA falla
           // await sendMessage(chatId, `¡Gomen, senpai! Mis circuitos de IA fallaron... ${MoeHandler.getRandomKaomoji()}`);
+        }
+      }
+    }
+
+    // Fallback de Sticker (solo si la IA no ha respondido y es un reply)
+    if (!commandProcessed && !suggestionProcessed && !aiReplied && messageObject) {
+      const isReplyToBot = messageObject.reply_to_message &&
+                           messageObject.reply_to_message.from &&
+                           messageObject.reply_to_message.from.is_bot &&
+                           messageObject.reply_to_message.from.username === (process.env.BOT_USERNAME || 'MoeTasker');
+
+      if (isReplyToBot) {
+        const stickerFileId = MoeHandler.getRandomReplySticker();
+        if (stickerFileId) {
+          try {
+            await sendSticker(chatId, stickerFileId);
+          } catch (e) {
+            console.error("Webhook: Error al enviar sticker de fallback:", e);
+          }
         }
       }
     }
