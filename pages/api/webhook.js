@@ -481,7 +481,7 @@ export default async function handler(req, res) {
 
           if (aiText) {
             // 4. Enviar la respuesta de la IA a Telegram
-            await sendMessage(chatId, aiText, "HTML");
+            await sendMessage(chatId, aiText, "MarkdownV2");
             aiReplied = true; // ¡La IA ha hablado! Marcamos la bandera.
           }
 
