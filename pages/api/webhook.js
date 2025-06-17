@@ -7,6 +7,7 @@ import * as GitHubStatsService from '@/lib/services/gitHubStatsService'; // Nuev
 import { query } from '@/lib/db';
 import { randomBytes } from 'crypto';
 import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
+import { getAiResponse } from './chat';
 
 export const config = {
   maxDuration: 60,
@@ -480,24 +481,12 @@ export default async function handler(req, res) {
             content: messageObject.text
           });
 
-          // 3. Llamar al endpoint de la IA
-          // Usamos la URL completa porque estamos en el entorno de servidor de Vercel
-          const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
-          const aiResponse = await fetch(`${baseUrl}/api/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: formattedMessages })
-          });
+          // 3. Llamar a la lógica de la IA directamente
+          const aiText = await getAiResponse(formattedMessages);
 
-          if (aiResponse.ok) {
-            const aiText = await aiResponse.text();
-            if (aiText) {
-              // 4. Enviar la respuesta de la IA a Telegram
-              await sendMessage(chatId, aiText, "HTML");
-            }
-          } else {
-              const errorText = await aiResponse.text();
-              console.error("Webhook: Error al llamar a /api/chat:", aiResponse.status, errorText);
+          if (aiText) {
+            // 4. Enviar la respuesta de la IA a Telegram
+            await sendMessage(chatId, aiText, "HTML");
           }
 
         } catch (aiError) {
