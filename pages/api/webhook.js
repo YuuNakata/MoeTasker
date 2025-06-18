@@ -387,7 +387,7 @@ export default async function handler(req, res) {
           const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${filePath}`;
 
           const visionPrompt = "Describe la emoción o el contenido de este sticker en 3 o 4 palabras clave en español, separadas por comas. Sé concisa y directa. Por ejemplo: feliz, saludo, adorable. O: confundido, pensando, duda. O: llorando, triste, drama. Solo devuelve las palabras clave.";
-          const categoriesText = await getVisionResponse(visionPrompt, fileUrl);
+          const categoriesText = await getVisionResponse(fileUrl, visionPrompt);
 
           if (!categoriesText || categoriesText.trim() === '') {
             throw new Error('La IA no pudo generar categorías para el sticker.');
