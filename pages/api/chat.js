@@ -82,6 +82,25 @@ export async function getVisionResponse(imageUrl, userPrompt) {
     }
 }
 
+export async function getTextAnalysisResponse(userPrompt) {
+    try {
+        const response = await groq.chat.completions.create({
+            model: 'llama3-8b-8192', // Usar un modelo más pequeño y rápido para análisis simple
+            messages: [
+                {
+                    role: 'user',
+                    content: userPrompt,
+                },
+            ],
+            max_tokens: 50, // Solo necesitamos unas pocas palabras
+        });
+        return response.choices[0]?.message?.content || '';
+    } catch (error) {
+        console.error("Error getting text analysis response from Groq:", error);
+        return ''; // Devolver vacío en caso de error
+    }
+}
+
 export async function getAiResponse(messages, speakingUser = null) {
     const systemPrompt = generateSystemPrompt(speakingUser);
 

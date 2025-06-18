@@ -8,7 +8,7 @@ import * as GitHubStatsService from '@/lib/services/gitHubStatsService'; // Nuev
 import { query } from '@/lib/db';
 import { randomBytes } from 'crypto';
 import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
-import { getAiResponse, getVisionResponse } from './chat';
+import { getAiResponse, getVisionResponse, getTextAnalysisResponse } from "@/pages/api/chat";
 import { getMemberById } from '@/lib/services/teamManager';
 
 export const config = {
@@ -512,24 +512,27 @@ export default async function handler(req, res) {
 
             // --- LÓGICA PARA ENVIAR STICKER --- 
             try {
-              // Con una probabilidad del 50%, intentamos buscar y enviar un sticker
-              if (Math.random() < 0.5) {
-                const stickerPrompt = `Basado en el siguiente texto, extrae 1 o 2 emociones o conceptos clave en español, separados por comas. Sé muy concisa. Ejemplos: celebración, acuerdo; duda, confusión; agradecimiento, feliz. Texto: "${aiText}"`;
-                const categoriesText = await getAiResponse([{ role: 'user', content: stickerPrompt }], null, 'llama3-8b-8192'); // Usamos un modelo rápido
+              // Aumentamos la probabilidad al 75% para que la función se note más
+              if (Math.random() < 0.75) { 
+                const stickerPrompt = `Analiza el siguiente texto y extrae un máximo de 2 palabras clave que representen el concepto o la emoción más importante. Prioriza sustantivos o adjetivos específicos y únicos. Evita palabras comunes o genéricas. Devuelve solo las palabras separadas por comas. Texto: "${aiText}"`;
                 
-                if (categoriesText && categoriesText.trim() !== '') {
-                  const categories = categoriesText.split(',').map(c => c.trim().toLowerCase());
-                  const sticker = await StickerManager.findRandomStickerByCategories(categories);
-                  
-                  if (sticker && sticker.file_id) {
-                    // ¡Enviamos el sticker encontrado!
-                    await sendSticker(chatId, sticker.file_id);
+                const categoriesText = await getTextAnalysisResponse(stickerPrompt);
+                
+                if (categoriesText) {
+                  const categories = categoriesText.split(',').map(cat => cat.trim().toLowerCase()).filter(c => c);
+                  if (categories.length > 0) {
+                    // Log de diagnóstico para ver qué categorías se están buscando
+                    console.log(`Buscando sticker con categorías extraídas: ${categories.join(', ')}`);
+                    const sticker = await StickerManager.findRandomStickerByCategories(categories);
+                    if (sticker && sticker.file_id) {
+                      await sendSticker(chatId, sticker.file_id);
+                    }
                   }
                 }
               }
             } catch (stickerError) {
-              console.error("Error en la lógica de envío de sticker:", stickerError);
-              // No hacemos nada si falla, es una función secundaria
+              console.error('Error al intentar enviar un sticker contextual:', stickerError);
+              // No molestamos al usuario si el sticker falla, es un extra.
             }
           }
 
