@@ -1,5 +1,5 @@
 // pages/api/webhook.js
-import { sendMessage, sendDice, deleteMessage, editMessageText, forwardMessage, sendDocumentByFileId, sendSticker, answerCallbackQuery, sendChatAction } from "@/utils/telegram";
+import { sendMessage, sendDice, deleteMessage, editMessageText, forwardMessage, sendDocumentByFileId, sendSticker, answerCallbackQuery, sendChatAction, getFilePath } from "@/utils/telegram";
 import * as TaskManager from "@/lib/services/taskManager";
 import * as MoeHandler from "@/lib/services/moeHandler";
 import * as OracleManager from "@/lib/services/oracleManager";
@@ -7,7 +7,7 @@ import * as GitHubStatsService from '@/lib/services/gitHubStatsService'; // Nuev
 import { query } from '@/lib/db';
 import { randomBytes } from 'crypto';
 import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
-import { getAiResponse } from './chat';
+import { getAiResponse, getVisionResponse } from './chat';
 import { getMemberById } from '@/lib/services/teamManager';
 
 export const config = {
@@ -15,12 +15,7 @@ export const config = {
 };
 
 const TASK_TRIGGER_KEYWORDS = [
-  "hay que", "necesitamos", "deberíamos", "deberia", "pendiente",
-  "tengo que", "tenemos que", "falta hacer", "recordar hacer",
-  "no olvidar", "sería bueno", "estaria bien", "investigar sobre",
-  "revisar el", "arreglar el", "implementar el", "crear un",
-  "añadir un", "terminar el", "optimizar el"
-];
+""];
 const NEGATION_KEYWORDS = ["no", "nunca", "tampoco"];
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -143,9 +138,39 @@ export default async function handler(req, res) {
     }
   }
 
-  console.log(`Webhook Procesado: ChatID=${chatId}, UserID=${userId}, Text="${text}"`);
+  console.log(`Webhook Procesado: ChatID=${chatId}, UserID=${userId}, Text=\"${text}\"`);
   let commandProcessed = false;
   let suggestionProcessed = false;
+
+  // --- Lógica de Reconocimiento de Imágenes ---
+  if (!aiReplied && messageObject && messageObject.text) {
+    const isReplyToPhoto = messageObject.reply_to_message && messageObject.reply_to_message.photo;
+    const textLowerCase = messageObject.text.toLowerCase();
+    // Hacemos el trigger más específico para evitar falsos positivos
+    const visionTrigger = textLowerCase.includes('moe');
+
+    if (isReplyToPhoto && visionTrigger) {
+        await sendChatAction(chatId);
+        
+        const photo = messageObject.reply_to_message.photo[messageObject.reply_to_message.photo.length - 1];
+        const fileId = photo.file_id;
+        const filePath = await getFilePath(fileId);
+
+        if (filePath) {
+            const imageUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${filePath}`;
+            // Un prompt más específico para guiar la personalidad de la respuesta de visión
+            const userPrompt = "Describe esta imagen de forma amigable y en español, como una chica moe de anime. Sé detallada pero concisa.";
+            const visionResponse = await getVisionResponse(imageUrl, userPrompt);
+            
+            const escapedResponse = MoeHandler.escapeMarkdownV2(visionResponse);
+            await sendMessage(chatId, escapedResponse, "MarkdownV2");
+            
+            aiReplied = true;
+        } else {
+            await sendMessage(chatId, "Uhm... no pude obtener la imagen para verla, gomen >.<");
+        }
+    }
+  }
 
   try {
     if (text.startsWith("/start") || text.startsWith("/help")) {

@@ -52,6 +52,36 @@ function generateSystemPrompt(speakingUser = null) {
  * Esta es la lógica principal que se comunica con la IA de Groq.
  * La exportamos para poder llamarla directamente desde otros archivos del servidor.
  */
+export async function getVisionResponse(imageUrl, userPrompt) {
+    try {
+        const response = await groq.chat.completions.create({
+            model: "llava-llama-3-8b-vision",
+            messages: [
+                {
+                    role: "user",
+                    content: [
+                        {
+                            type: "text",
+                            text: userPrompt,
+                        },
+                        {
+                            type: "image_url",
+                            image_url: {
+                                url: imageUrl,
+                            },
+                        },
+                    ],
+                },
+            ],
+            max_tokens: 1024,
+        });
+        return response.choices[0]?.message?.content || '';
+    } catch (error) {
+        console.error("Error getting vision response from Groq:", error);
+        return "Uguu~ Mis ojitos mágicos no funcionan bien ahora mismo, gomenasai.";
+    }
+}
+
 export async function getAiResponse(messages, speakingUser = null) {
     const systemPrompt = generateSystemPrompt(speakingUser);
 

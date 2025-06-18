@@ -1,6 +1,27 @@
 // utils/telegram.js
 const TELEGRAM_API_URL = `https://api.telegram.org/bot${process.env.BOT_TOKEN}`;
 
+export async function getFilePath(fileId) {
+    const url = `${TELEGRAM_API_URL}/getFile`;
+    const body = { file_id: fileId };
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (!response.ok) {
+            console.error("Failed to get file path. Status:", response.status, "Body:", await response.text());
+            return null;
+        }
+        const data = await response.json();
+        return data.result.file_path;
+    } catch (err) {
+        console.error("Error occurred while getting file path", err);
+        return null;
+    }
+}
+
 export async function sendChatAction(chatId, action = 'typing') {
     const url = `${TELEGRAM_API_URL}/sendChatAction`;
     const body = {
