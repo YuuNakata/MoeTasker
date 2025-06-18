@@ -8,7 +8,7 @@ import * as GitHubStatsService from '@/lib/services/gitHubStatsService'; // Nuev
 import { query } from '@/lib/db';
 import { randomBytes } from 'crypto';
 import { escapeHTML, bold, italic, code } from '@/lib/utils/htmlEscaper';
-import { getAiResponse, getVisionResponse, getTextAnalysisResponse } from "@/pages/api/chat";
+import { getAiResponse, getVisionResponse } from "@/pages/api/chat";
 import { getMemberById } from '@/lib/services/teamManager';
 
 export const config = {
@@ -516,7 +516,7 @@ export default async function handler(req, res) {
               if (Math.random() < 0.75) { 
                 const stickerPrompt = `Analiza el siguiente texto y extrae un máximo de 2 palabras clave que representen el concepto o la emoción más importante. Prioriza sustantivos o adjetivos específicos y únicos. Evita palabras comunes o genéricas. Devuelve solo las palabras separadas por comas. Texto: "${aiText}"`;
                 
-                const categoriesText = await getTextAnalysisResponse(stickerPrompt);
+                const categoriesText = await getAiResponse([{ role: 'user', content: stickerPrompt }]);
                 
                 if (categoriesText) {
                   const categories = categoriesText.split(',').map(cat => cat.trim().toLowerCase()).filter(c => c);
