@@ -55,7 +55,7 @@ function generateSystemPrompt(speakingUser = null) {
 export async function getVisionResponse(imageUrl, userPrompt) {
     try {
         const response = await groq.chat.completions.create({
-            model: "llava-llama-3-8b-vision",
+            model: "llava-v1.5-7b-4096",
             messages: [
                 {
                     role: "user",
