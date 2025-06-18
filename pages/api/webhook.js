@@ -375,8 +375,7 @@ export default async function handler(req, res) {
         const sticker = messageObject.reply_to_message.sticker;
 
         if (sticker.is_animated || sticker.is_video) {
-          // Log de diagnóstico para entender por qué un sticker se considera animado
-          console.log('Sticker detectado como animado/video. Objeto completo del sticker:', JSON.stringify(sticker, null, 2));
+
           await sendMessage(chatId, `¡Gomen, senpai! (｡>_<｡) Por ahora mis ojitos mágicos solo pueden analizar stickers estáticos. ¡Todavía no puedo ver los que se mueven!`, null);
           return;
         }
