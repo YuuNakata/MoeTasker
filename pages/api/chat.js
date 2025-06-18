@@ -73,7 +73,7 @@ export async function getVisionResponse(imageUrl, userPrompt) {
                     ],
                 },
             ],
-            max_tokens: 1024,
+            max_tokens: 50, // Reducido para una respuesta más rápida de categorías
         });
         return response.choices[0]?.message?.content || '';
     } catch (error) {
