@@ -386,8 +386,17 @@ export default async function handler(req, res) {
           }
           const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${filePath}`;
 
+          // Descargar el contenido de la imagen
+          const imageResponse = await fetch(fileUrl);
+          if (!imageResponse.ok) {
+            throw new Error('No se pudo descargar el sticker desde Telegram.');
+          }
+          const imageBuffer = await imageResponse.arrayBuffer();
+          const imageBase64 = Buffer.from(imageBuffer).toString('base64');
+          const imageDataUrl = `data:image/webp;base64,${imageBase64}`;
+
           const visionPrompt = "Describe la emoción o el contenido de este sticker en 3 o 4 palabras clave en español, separadas por comas. Sé concisa y directa. Por ejemplo: feliz, saludo, adorable. O: confundido, pensando, duda. O: llorando, triste, drama. Solo devuelve las palabras clave.";
-          const categoriesText = await getVisionResponse(fileUrl, visionPrompt);
+          const categoriesText = await getVisionResponse(imageDataUrl, visionPrompt);
 
           if (!categoriesText || categoriesText.trim() === '') {
             throw new Error('La IA no pudo generar categorías para el sticker.');
