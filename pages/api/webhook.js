@@ -385,83 +385,14 @@ export default async function handler(req, res) {
       }
     }
 
-    // Detector de Tareas Implícitas
-    if (!commandProcessed && messageObject && messageObject.text && !messageObject.from.is_bot) {
-      const textToAnalyze = messageObject.text.toLowerCase();
-      let potentialTaskDescription = null;
-
-      for (const keyword of TASK_TRIGGER_KEYWORDS) {
-        const keywordIndex = textToAnalyze.indexOf(keyword);
-        if (keywordIndex !== -1) {
-          let isNegated = false;
-          for (const negWord of NEGATION_KEYWORDS) {
-            if (textToAnalyze.substring(Math.max(0, keywordIndex - negWord.length - 3), keywordIndex).includes(negWord)) {
-              isNegated = true;
-              break;
-            }
-          }
-          if (isNegated) continue;
-
-          let taskTextStartIndex = keywordIndex + keyword.length;
-          potentialTaskDescription = messageObject.text.substring(taskTextStartIndex).trim();
-          
-          if (potentialTaskDescription.match(/^[,.:;!?\s]+/)) {
-              potentialTaskDescription = potentialTaskDescription.replace(/^[,.:;!?\s]+/, "");
-          }
-          
-          if (potentialTaskDescription && potentialTaskDescription.length > 3) { // Ajustar longitud mínima
-            break;
-          } else {
-            potentialTaskDescription = null;
-          }
-        }
-      }
-
-      if (potentialTaskDescription) {
-        suggestionProcessed = true;
-        const suggestionKey = generateSuggestionKey();
-
-        try {
-          await query(
-            `INSERT INTO temporary_task_suggestions (suggestion_key, full_description, chat_id, user_id)
-             VALUES ($1, $2, $3, $4)`,
-            [suggestionKey, potentialTaskDescription, chatId, userId]
-          );
-
-          // Ahora el texto del botón será más corto y el callback_data usará la clave
-          const escapedOriginalTextPreview = escapeHTML(
-            messageObject.text.length > 40 ? messageObject.text.substring(0, 37) + "..." : messageObject.text
-          );
-          // El shortDescriptionForButton es solo para el TEXTO del botón, no para callback_data
-          const shortDescriptionForButtonText = potentialTaskDescription.length > 20 
-            ? escapeHTML(potentialTaskDescription.substring(0, 17) + "...") 
-            : escapeHTML(potentialTaskDescription);
-
-
-          const messageText = `¡Oído cocina! (๑•̀ㅂ•́)و✧ Detecté que mencionaste "${italic(escapedOriginalTextPreview)}". ¿Debería crear una tareíta para "${italic(escapeHTML(potentialTaskDescription))}", senpai?`;
-          
-          const inlineKeyboard = {
-            inline_keyboard: [
-              [
-                // El texto del botón puede ser más descriptivo
-                { text: `✔️ Sí: "${shortDescriptionForButtonText}"`, callback_data: `create_task_confirm_sugg:${suggestionKey}` }, // Usar la clave
-              ],
-              [
-                { text: `❌ No, gracias ${MoeHandler.getRandomKaomoji()}`, callback_data: "create_task_cancel" }
-              ]
-            ]
-          };
-          await sendMessage(chatId, messageText, "HTML", false, inlineKeyboard);
-
-        } catch (dbError) {
-          console.error("Error guardando sugerencia de tarea temporal:", dbError);
-          suggestionProcessed = false; // Falló, así que no la consideramos procesada
-        }
-      }
-    }
+    /*
+    --- DETECTOR DE TAREAS IMPLÍCITAS (DESACTIVADO POR EL USUARIO) ---
+    Esta funcionalidad ha sido desactivada a petición del usuario
+    para evitar que interfiera con otras respuestas del bot.
+    */
 
     // Guardar en Oráculo si no fue comando y no se sugirió tarea (o según prefieras)
-    if (!commandProcessed && !suggestionProcessed && messageObject && messageObject.text && messageObject.text.trim() !== "" && !messageObject.from.is_bot) {
+    if (!commandProcessed && messageObject && messageObject.text && messageObject.text.trim() !== "" && !messageObject.from.is_bot) {
         await OracleManager.storeMessageForOracle(messageObject);
     }
 
