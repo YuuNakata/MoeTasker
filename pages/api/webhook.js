@@ -1,8 +1,10 @@
 // pages/api/webhook.js
-import { sendMessage, sendDice, deleteMessage, editMessageText, forwardMessage, sendDocumentByFileId, sendSticker, answerCallbackQuery, sendChatAction, getFilePath } from "@/utils/telegram";
+import { sendMessage, sendDice, deleteMessage, editMessageText, forwardMessage, sendDocumentByFileId, sendSticker, answerCallbackQuery, sendChatAction } from "@/utils/telegram";
+import { getFile } from "@/utils/telegram"; // Corrected import
 import * as TaskManager from "@/lib/services/taskManager";
 import * as MoeHandler from "@/lib/services/moeHandler";
 import * as OracleManager from "@/lib/services/oracleManager";
+import * as StickerManager from "@/lib/services/stickerManager"; // Added import
 import * as GitHubStatsService from '@/lib/services/gitHubStatsService'; // Nueva importación
 import { query } from '@/lib/db';
 import { randomBytes } from 'crypto';
@@ -368,6 +370,46 @@ export default async function handler(req, res) {
         commandProcessed = true;
       }
     }
+    else if (text.startsWith("/add_sticker")) {
+      commandProcessed = true;
+      if (messageObject.reply_to_message && messageObject.reply_to_message.sticker) {
+        const sticker = messageObject.reply_to_message.sticker;
+        const fileId = sticker.file_id;
+        const userId = messageObject.from.id;
+
+        try {
+          await sendChatAction(chatId, 'typing');
+          await sendMessage(chatId, `Analizando el sticker con mi ojo mágico... (๑✧ω✧๑) Un momento, por favor.`, 'HTML');
+
+          const fileData = await getFile(fileId);
+          if (!fileData || !fileData.file_path) {
+            throw new Error('No se pudo obtener la información del archivo del sticker desde Telegram.');
+          }
+          const filePath = fileData.file_path;
+          const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${filePath}`;
+
+          const visionPrompt = "Describe la emoción o el contenido de este sticker en 3 o 4 palabras clave en español, separadas por comas. Sé concisa y directa. Por ejemplo: feliz, saludo, adorable. O: confundido, pensando, duda. O: llorando, triste, drama. Solo devuelve las palabras clave.";
+          const categoriesText = await getVisionResponse(visionPrompt, fileUrl);
+
+          if (!categoriesText || categoriesText.trim() === '') {
+            throw new Error('La IA no pudo generar categorías para el sticker.');
+          }
+
+          const categories = categoriesText.split(',').map(cat => cat.trim().toLowerCase());
+
+          await StickerManager.addSticker(fileId, categories, userId);
+
+          await sendMessage(chatId, `¡Hecho! ✨ He guardado este sticker con las categorías: ${code(categories.join(', '))}. ¡Lo usaré cuando la ocasión lo amerite!`, 'HTML');
+
+        } catch (error) {
+          console.error('Error al procesar /add_sticker:', error);
+          await sendMessage(chatId, `¡Ups! Algo salió mal y no pude guardar el sticker. ¡Gomen! (｡•́︿•̀｡)\nError: ${error.message}`, 'HTML');
+        }
+
+      } else {
+        await sendMessage(chatId, 'Para agregar un sticker, responde a un sticker con el comando /add_sticker, senpai. (´• ω •`)', 'HTML');
+      }
+    }
     else { // No es un comando explícito
       const moeResponse = MoeHandler.getMoeResponse(text);
       if (moeResponse) {
@@ -442,11 +484,7 @@ export default async function handler(req, res) {
             // 4. Escapar el texto para MarkdownV2, pero ignorando los bloques de código.
             const parts = aiText.split(/(```[\s\S]*?```)/g);
             const escapedParts = parts.map((part, index) => {
-              // Si la parte es un bloque de código (índice impar), no la escapamos.
-              if (index % 2 === 1) {
-                return part;
-              }
-              // Si es texto normal, la escapamos.
+              if (index % 2 === 1) return part;
               return MoeHandler.escapeMarkdownV2(part);
             });
             const escapedText = escapedParts.join('');
@@ -454,6 +492,28 @@ export default async function handler(req, res) {
             // 5. Enviar la respuesta de la IA a Telegram
             await sendMessage(chatId, escapedText, "MarkdownV2");
             aiReplied = true; // ¡La IA ha hablado! Marcamos la bandera.
+
+            // --- LÓGICA PARA ENVIAR STICKER --- 
+            try {
+              // Con una probabilidad del 50%, intentamos buscar y enviar un sticker
+              if (Math.random() < 0.5) {
+                const stickerPrompt = `Basado en el siguiente texto, extrae 1 o 2 emociones o conceptos clave en español, separados por comas. Sé muy concisa. Ejemplos: celebración, acuerdo; duda, confusión; agradecimiento, feliz. Texto: "${aiText}"`;
+                const categoriesText = await getAiResponse([{ role: 'user', content: stickerPrompt }], null, 'llama3-8b-8192'); // Usamos un modelo rápido
+                
+                if (categoriesText && categoriesText.trim() !== '') {
+                  const categories = categoriesText.split(',').map(c => c.trim().toLowerCase());
+                  const sticker = await StickerManager.findRandomStickerByCategories(categories);
+                  
+                  if (sticker && sticker.file_id) {
+                    // ¡Enviamos el sticker encontrado!
+                    await sendSticker(chatId, sticker.file_id);
+                  }
+                }
+              }
+            } catch (stickerError) {
+              console.error("Error en la lógica de envío de sticker:", stickerError);
+              // No hacemos nada si falla, es una función secundaria
+            }
           }
 
         } catch (aiError) {
