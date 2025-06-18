@@ -373,6 +373,12 @@ export default async function handler(req, res) {
       commandProcessed = true;
       if (messageObject.reply_to_message && messageObject.reply_to_message.sticker) {
         const sticker = messageObject.reply_to_message.sticker;
+
+        if (sticker.is_animated || sticker.is_video) {
+          await sendMessage(chatId, `¡Gomen, senpai! (｡>_<｡) Por ahora mis ojitos mágicos solo pueden analizar stickers estáticos. ¡Todavía no puedo ver los que se mueven!`, 'HTML');
+          return;
+        }
+
         const fileId = sticker.file_id;
         const userId = messageObject.from.id;
 
@@ -391,9 +397,10 @@ export default async function handler(req, res) {
           if (!imageResponse.ok) {
             throw new Error('No se pudo descargar el sticker desde Telegram.');
           }
+          const contentType = imageResponse.headers.get('content-type') || 'image/webp';
           const imageBuffer = await imageResponse.arrayBuffer();
           const imageBase64 = Buffer.from(imageBuffer).toString('base64');
-          const imageDataUrl = `data:image/webp;base64,${imageBase64}`;
+          const imageDataUrl = `data:${contentType};base64,${imageBase64}`;
 
           const visionPrompt = "Describe la emoción o el contenido de este sticker en 3 o 4 palabras clave en español, separadas por comas. Sé concisa y directa. Por ejemplo: feliz, saludo, adorable. O: confundido, pensando, duda. O: llorando, triste, drama. Solo devuelve las palabras clave.";
           const categoriesText = await getVisionResponse(imageDataUrl, visionPrompt);
