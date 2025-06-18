@@ -1,6 +1,5 @@
 // pages/api/webhook.js
-import { sendMessage, sendDice, deleteMessage, editMessageText, forwardMessage, sendDocumentByFileId, sendSticker, answerCallbackQuery, sendChatAction } from "@/utils/telegram";
-import { getFile } from "@/utils/telegram"; // Corrected import
+import { sendMessage, sendDice, deleteMessage, editMessageText, forwardMessage, sendDocumentByFileId, sendSticker, answerCallbackQuery, sendChatAction, getFilePath } from "@/utils/telegram";
 import * as TaskManager from "@/lib/services/taskManager";
 import * as MoeHandler from "@/lib/services/moeHandler";
 import * as OracleManager from "@/lib/services/oracleManager";
@@ -381,11 +380,10 @@ export default async function handler(req, res) {
           await sendChatAction(chatId, 'typing');
           await sendMessage(chatId, `Analizando el sticker con mi ojo mágico... (๑✧ω✧๑) Un momento, por favor.`, 'HTML');
 
-          const fileData = await getFile(fileId);
-          if (!fileData || !fileData.file_path) {
-            throw new Error('No se pudo obtener la información del archivo del sticker desde Telegram.');
+          const filePath = await getFilePath(fileId);
+          if (!filePath) {
+            throw new Error('No se pudo obtener la ruta del archivo del sticker desde Telegram.');
           }
-          const filePath = fileData.file_path;
           const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${filePath}`;
 
           const visionPrompt = "Describe la emoción o el contenido de este sticker en 3 o 4 palabras clave en español, separadas por comas. Sé concisa y directa. Por ejemplo: feliz, saludo, adorable. O: confundido, pensando, duda. O: llorando, triste, drama. Solo devuelve las palabras clave.";
