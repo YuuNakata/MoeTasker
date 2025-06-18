@@ -428,21 +428,9 @@ export default async function handler(req, res) {
       }
     }
     else { // No es un comando explícito
-      const moeResponse = MoeHandler.getMoeResponse(text);
-      if (moeResponse) {
-        await sendMessage(chatId, moeResponse, "HTML");
-        commandProcessed = true; // Considerar si las respuestas Moe deben evitar otras lógicas
-      }
+
     }
 
-    // Integrar respuesta por palabras clave (saludos/despedidas)
-    if (!commandProcessed) {
-      const keywordResponse = MoeHandler.getKeywordResponse(text);
-      if (keywordResponse) {
-        await sendMessage(chatId, keywordResponse, "HTML", false, null, messageObject.message_id);
-        commandProcessed = true; // Se envió una respuesta específica
-      }
-    }
 
     /*
     --- DETECTOR DE TAREAS IMPLÍCITAS (DESACTIVADO POR EL USUARIO) ---
