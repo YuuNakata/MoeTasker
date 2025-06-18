@@ -375,7 +375,7 @@ export default async function handler(req, res) {
         const sticker = messageObject.reply_to_message.sticker;
 
         if (sticker.is_animated || sticker.is_video) {
-          await sendMessage(chatId, `¡Gomen, senpai! (｡>_<｡) Por ahora mis ojitos mágicos solo pueden analizar stickers estáticos. ¡Todavía no puedo ver los que se mueven!`, 'HTML');
+          await sendMessage(chatId, `¡Gomen, senpai! (｡>_<｡) Por ahora mis ojitos mágicos solo pueden analizar stickers estáticos. ¡Todavía no puedo ver los que se mueven!`, null);
           return;
         }
 
