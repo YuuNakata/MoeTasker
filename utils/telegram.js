@@ -45,42 +45,87 @@ export async function sendChatAction(chatId, action = 'typing') {
     }
 } // Cambiado a TELEGRAM_BOT_TOKEN como en tu webhook
 
-export async function sendMessage(chatid, text, parseMode = "HTML", silent = false, replyMarkup = null) {
+// Función auxiliar para enviar un único mensaje, que será usada por sendMessage
+async function sendSingleMessage(chatid, text, parseMode, silent, replyMarkup, replyToMessageId) {
     const url = `${TELEGRAM_API_URL}/sendMessage`;
     const body = {
         chat_id: chatid,
         text: text,
     };
 
-    if (parseMode) {
-        body.parse_mode = parseMode;
-    }
-
-    if (silent) {
-        body.disable_notification = true;
-    }
-
-    if (replyMarkup) { // Nuevo: para inline_keyboard u otros reply_markup
-        body.reply_markup = replyMarkup;
-    }
+    if (parseMode) body.parse_mode = parseMode;
+    if (silent) body.disable_notification = true;
+    if (replyMarkup) body.reply_markup = replyMarkup;
+    if (replyToMessageId) body.reply_to_message_id = replyToMessageId;
 
     try {
         const response = await fetch(url, {
             method: "POST",
-            headers: {
-                'Content-type': 'application/json'
-            },
+            headers: { 'Content-type': 'application/json' },
             body: JSON.stringify(body)
         });
         if (!response.ok){
             console.error("Failed to send message to telegram user. Status:", response.status, "Body:", await response.text());
         }
-        // Devolver la respuesta completa para que el llamador pueda parsear el JSON si es necesario (ej. para obtener message_id)
         return response;
     } catch (err) {
         console.error("Error occured while sending message to telegram user", err);
         return null;
     }
+}
+
+export async function sendMessage(chatid, text, parseMode = "HTML", silent = false, replyMarkup = null, replyToMessageId = null) {
+    // Límite de Telegram es 4096, usamos un valor seguro
+    const SAFE_MAX_LENGTH = 4000;
+
+    if (text.length <= SAFE_MAX_LENGTH) {
+        return await sendSingleMessage(chatid, text, parseMode, silent, replyMarkup, replyToMessageId);
+    }
+
+    console.log(`Mensaje largo detectado (longitud: ${text.length}). Dividiendo en partes...`);
+    
+    const chunks = [];
+    let currentChunk = "";
+    const lines = text.split('\n');
+
+    for (const line of lines) {
+        // Si una sola línea es demasiado larga, debe ser dividida
+        if (line.length > SAFE_MAX_LENGTH) {
+            if (currentChunk.length > 0) {
+                chunks.push(currentChunk);
+                currentChunk = "";
+            }
+            const lineChunks = line.match(new RegExp(`.{1,${SAFE_MAX_LENGTH}}`, 'g')) || [];
+            chunks.push(...lineChunks);
+            continue;
+        }
+
+        // Si añadir la siguiente línea excede el límite, se guarda el chunk actual
+        if (currentChunk.length + line.length + 1 > SAFE_MAX_LENGTH) {
+            chunks.push(currentChunk);
+            currentChunk = line;
+        } else {
+            currentChunk += (currentChunk.length > 0 ? '\n' : '') + line;
+        }
+    }
+
+    if (currentChunk.length > 0) {
+        chunks.push(currentChunk);
+    }
+
+    let firstResponse = null;
+    // Enviar cada chunk con una pequeña pausa
+    for (let i = 0; i < chunks.length; i++) {
+        const currentReplyId = i === 0 ? replyToMessageId : null;
+        const response = await sendSingleMessage(chatid, chunks[i], parseMode, silent, replyMarkup, currentReplyId);
+        if (i === 0) {
+            firstResponse = response;
+        }
+        if (i < chunks.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+    return firstResponse;
 }
 
 export async function sendDice(chatid, emoji = "🎲") {
