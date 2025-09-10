@@ -397,18 +397,51 @@ export async function getChatAdministrators(chatId) {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      const errorData = JSON.parse(errorText);
+
+      // Manejar casos específicos de error
+      if (
+        errorData.description &&
+        errorData.description.includes("private chat")
+      ) {
+        console.warn(
+          `Chat ${chatId} es un chat privado, no se pueden obtener administradores`,
+        );
+        return [];
+      } else if (
+        errorData.description &&
+        errorData.description.includes("chat not found")
+      ) {
+        console.error(`Chat ${chatId} no encontrado o bot no tiene acceso`);
+        return [];
+      } else if (
+        errorData.description &&
+        errorData.description.includes("not enough rights")
+      ) {
+        console.error(`Bot no tiene permisos suficientes en el chat ${chatId}`);
+        return [];
+      }
+
       console.error(
-        "Error obteniendo administradores del chat:",
+        `Error obteniendo administradores del chat ${chatId}:`,
         response.status,
-        await response.text(),
+        errorData.description || errorText,
       );
       return [];
     }
 
     const data = await response.json();
-    return data.result || [];
+    const administrators = data.result || [];
+    console.log(
+      `Encontrados ${administrators.length} administradores en el chat ${chatId}`,
+    );
+    return administrators;
   } catch (error) {
-    console.error("Error de red en getChatAdministrators:", error);
+    console.error(
+      `Error de red en getChatAdministrators para chat ${chatId}:`,
+      error,
+    );
     return [];
   }
 }

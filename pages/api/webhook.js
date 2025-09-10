@@ -544,19 +544,31 @@ export default async function handler(req, res) {
       // Comando de prueba para verificar miembros activos del grupo
       commandProcessed = true;
       try {
-        await sendMessage(
-          chatId,
-          `🔍 Verificando miembros activos del grupo... ${MoeHandler.getRandomKaomoji()}`,
-          "HTML",
-        );
+        // Determinar qué grupo usar - TARGET_GROUP_ID si está disponible, sino chatId actual
+        const targetGroupId = process.env.TARGET_GROUP_ID || chatId;
+        const isUsingTargetGroup =
+          process.env.TARGET_GROUP_ID &&
+          process.env.TARGET_GROUP_ID !== chatId.toString();
+
+        let statusMessage = `🔍 Verificando miembros activos del grupo`;
+        if (isUsingTargetGroup) {
+          statusMessage += ` (ID: ${code(targetGroupId)})`;
+        }
+        statusMessage += `... ${MoeHandler.getRandomKaomoji()}`;
+
+        await sendMessage(chatId, statusMessage, "HTML");
 
         const { getActiveTeamMembers } = await import(
           "@/lib/services/taskManager"
         );
-        const activeMembers = await getActiveTeamMembers(chatId);
+        const activeMembers = await getActiveTeamMembers(targetGroupId);
 
         if (activeMembers && activeMembers.length > 0) {
-          let membersText = `👥 ${bold("Miembros Activos del Equipo:")}\n\n`;
+          let membersText = `👥 ${bold("Miembros Activos del Equipo:")}`;
+          if (isUsingTargetGroup) {
+            membersText += ` ${bold("(Grupo Principal)")}`;
+          }
+          membersText += `\n\n`;
           activeMembers.forEach((member, index) => {
             membersText += `${index + 1}. ${escapeHTML(member.name)} (ID: ${code(member.id.toString())})`;
             if (member.username) {
@@ -578,17 +590,67 @@ export default async function handler(req, res) {
 
           await sendMessage(chatId, membersText, "HTML");
         } else {
-          await sendMessage(
-            chatId,
-            `❌ No se pudieron obtener los miembros activos del grupo. ${MoeHandler.getRandomKaomoji()}`,
-            "HTML",
-          );
+          let errorMessage = `❌ No se pudieron obtener los miembros activos del grupo`;
+          if (isUsingTargetGroup) {
+            errorMessage += ` principal (ID: ${code(targetGroupId)})`;
+          }
+          errorMessage += `. ${MoeHandler.getRandomKaomoji()}`;
+
+          await sendMessage(chatId, errorMessage, "HTML");
         }
       } catch (error) {
         console.error("Error en comando /miembros:", error);
         await sendMessage(
           chatId,
           `⚠️ Error al verificar los miembros: ${escapeHTML(error.message)}`,
+          "HTML",
+        );
+      }
+    } else if (text.startsWith("/config")) {
+      // Comando para verificar la configuración del bot
+      commandProcessed = true;
+      try {
+        let configText = `⚙️ ${bold("Configuración del Bot MoeTasker:")}\n\n`;
+
+        // Información básica del bot
+        const botUsername = process.env.BOT_USERNAME || "No configurado";
+        const botName = process.env.BOT_NAME || "No configurado";
+        configText += `🤖 ${bold("Bot Username:")} ${code(botUsername)}\n`;
+        configText += `📛 ${bold("Bot Name:")} ${escapeHTML(botName)}\n\n`;
+
+        // Configuración del grupo objetivo
+        const targetGroupId = process.env.TARGET_GROUP_ID || "No configurado";
+        configText += `🎯 ${bold("Grupo Principal (TARGET_GROUP_ID):")} ${code(targetGroupId)}\n`;
+
+        // ID de Claudia
+        const claudiaId = process.env.USER_ID_CLAUDIA || "No configurado";
+        configText += `👤 ${bold("Claudia ID (excluida de tareas):")} ${code(claudiaId)}\n\n`;
+
+        // Estado del chat actual
+        const currentChatType = messageObject.chat.type;
+        configText += `💬 ${bold("Chat Actual:")} ${escapeHTML(currentChatType)} (ID: ${code(chatId.toString())})\n`;
+
+        // Verificar si el chat actual es el grupo objetivo
+        if (targetGroupId !== "No configurado") {
+          const isTargetGroup = targetGroupId === chatId.toString();
+          if (isTargetGroup) {
+            configText += `✅ ${bold("Este es el grupo principal configurado")}\n`;
+          } else {
+            configText += `ℹ️ ${bold("Este NO es el grupo principal")}\n`;
+          }
+        }
+
+        configText += `\n🔧 ${bold("Estado del Sistema:")}\n`;
+        configText += `- Detección dinámica de miembros: ✅ Activa\n`;
+        configText += `- Exclusión de Claudia: ${claudiaId !== "No configurado" ? "✅ Configurada" : "⚠️ No configurada"}\n`;
+        configText += `- Grupo objetivo: ${targetGroupId !== "No configurado" ? "✅ Configurado" : "⚠️ No configurado"}\n`;
+
+        await sendMessage(chatId, configText, "HTML");
+      } catch (error) {
+        console.error("Error en comando /config:", error);
+        await sendMessage(
+          chatId,
+          `⚠️ Error al verificar la configuración: ${escapeHTML(error.message)}`,
           "HTML",
         );
       }
