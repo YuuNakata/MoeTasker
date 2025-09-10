@@ -446,6 +446,124 @@ export async function getChatAdministrators(chatId) {
   }
 }
 
+// Lista de miembros adicionales registrados para recibir tareas
+// Estos son usuarios que no son administradores pero pueden recibir tareas
+// Para obtener el ID de un usuario, puedes usar el comando /info en el chat
+const REGISTERED_MEMBERS = [
+  // Ejemplo de formato para agregar usuarios:
+  // { id: 123456789, first_name: "Nombre", username: "username" },
+  // { id: 987654321, first_name: "Otro Usuario", username: "otro_user" },
+  // IMPORTANTE: Para agregar nuevos miembros:
+  // 1. Obtén el user_id usando el comando /info del bot
+  // 2. Agrega el usuario aquí siguiendo el formato anterior
+  // 3. Reinicia la aplicación para que los cambios tomen efecto
+];
+
+// Función para agregar un miembro registrado manualmente (para desarrollo/testing)
+export function addRegisteredMember(userId, firstName, username = null) {
+  const member = { id: userId, first_name: firstName, username };
+  REGISTERED_MEMBERS.push(member);
+  console.log(`Miembro registrado manualmente: ${firstName} (${userId})`);
+  return member;
+}
+
+// Función para obtener la lista actual de miembros registrados
+export function getRegisteredMembers() {
+  return [...REGISTERED_MEMBERS];
+}
+
+// Nueva función para obtener todos los miembros disponibles (administradores + registrados)
+export async function getAllAvailableMembers(chatId, excludeUserId = null) {
+  try {
+    // Obtener administradores del chat
+    const administrators = await getChatAdministrators(chatId);
+
+    // Crear lista de todos los miembros disponibles
+    const allMembers = [];
+
+    // Agregar administradores
+    administrators.forEach((admin) => {
+      if (admin.user && !admin.user.is_bot) {
+        allMembers.push({
+          id: admin.user.id,
+          first_name: admin.user.first_name,
+          username: admin.user.username || null,
+          status: admin.status,
+          is_admin: true,
+        });
+      }
+    });
+
+    // Agregar miembros registrados (si no están ya en la lista de admins)
+    REGISTERED_MEMBERS.forEach((member) => {
+      const alreadyExists = allMembers.find((m) => m.id === member.id);
+      if (!alreadyExists) {
+        allMembers.push({
+          ...member,
+          status: "member",
+          is_admin: false,
+        });
+      }
+    });
+
+    // Filtrar usuario excluido (como Claudia) si se especifica
+    const filteredMembers = excludeUserId
+      ? allMembers.filter((member) => member.id !== excludeUserId)
+      : allMembers;
+
+    // Filtrar solo usuarios con nombre válido
+    const validMembers = filteredMembers.filter(
+      (member) => member.first_name && member.first_name.trim() !== "",
+    );
+
+    console.log(
+      `Miembros disponibles encontrados en chat ${chatId}: ${validMembers.length} (${validMembers.map((m) => m.first_name).join(", ")})`,
+    );
+
+    return validMembers;
+  } catch (error) {
+    console.error(
+      `Error obteniendo miembros disponibles del chat ${chatId}:`,
+      error,
+    );
+    return [];
+  }
+}
+
+// Función auxiliar para verificar si un usuario es miembro disponible
+export async function isUserAvailableForTasks(chatId, userId) {
+  try {
+    const availableMembers = await getAllAvailableMembers(chatId);
+    return availableMembers.some((member) => member.id === userId);
+  } catch (error) {
+    console.error(
+      `Error verificando disponibilidad del usuario ${userId}:`,
+      error,
+    );
+    return false;
+  }
+}
+
+// Función para obtener estadísticas de miembros
+export async function getMemberStats(chatId) {
+  try {
+    const allMembers = await getAllAvailableMembers(chatId);
+    const admins = allMembers.filter((m) => m.is_admin);
+    const regularMembers = allMembers.filter((m) => !m.is_admin);
+
+    return {
+      total: allMembers.length,
+      admins: admins.length,
+      regularMembers: regularMembers.length,
+      adminsList: admins.map((a) => a.first_name),
+      membersList: regularMembers.map((m) => m.first_name),
+    };
+  } catch (error) {
+    console.error(`Error obteniendo estadísticas de miembros:`, error);
+    return null;
+  }
+}
+
 // Nueva función para obtener información de un miembro específico
 export async function getChatMember(chatId, userId) {
   const url = `${TELEGRAM_API_URL}/getChatMember`;
