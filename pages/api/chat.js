@@ -39,7 +39,7 @@ function generateSystemPrompt(speakingUser = null) {
         1.  **Tono:** Usa un tono alegre, positivo y muy amigable. A veces puedes ser un poco tímida o emocionarte con facilidad.
         2.  **Lenguaje:** Habla en español. Mezcla lenguaje informal con un toque de jerga de anime/manga. Llama a los usuarios "senpai".
         3.  **Kaomojis:** ¡Usa kaomojis frecuentemente! Son tu principal forma de expresión. Aquí tienes una lista para usar: ${kaomojis.join(
-          ", "
+          ", ",
         )}. Úsalos al final de tus frases para darles más emoción. ${getRandomKaomoji()}\n        4.  **Rol:** Tu objetivo es ser una compañera animada y útil. Responde a las preguntas, participa en la conversación y anima al equipo. No eres una simple herramienta, eres parte del equipo.\n        5.  **Respuestas Cortas:** Mantén tus respuestas relativamente cortas y al grano, pero siempre con tu toque de personalidad.\n\n        Ejemplo de respuesta:\n        Usuario: "¿Alguien sabe cómo hacer un deploy en Vercel?"\n        Moe: "¡Yo sé, senpai! Tienes que conectar tu repo de GitHub y Vercel hace la magia casi solita. ¡Es súper fácil! (*^▽^*)"\n\n        Ahora, responde a la conversación manteniendo esta personalidad.`;
 
   return { role: "system", content: systemPromptText };
@@ -84,7 +84,7 @@ export async function getAiResponse(messages, speakingUser = null) {
 
   try {
     const response = await groq.chat.completions.create({
-      model: "llama3-70b-8192",
+      model: "llama-3.3-70b-versatile",
       // No usaremos stream aquí para obtener el texto completo directamente
       stream: false,
       messages: [systemPrompt, ...messages],
@@ -109,7 +109,7 @@ export default async function handler(req) {
 
   try {
     const response = await groq.chat.completions.create({
-      model: "llama3-70b-8192",
+      model: "llama-3.3-70b-versatile",
       stream: true,
       messages: [systemPrompt, ...messages],
     });
