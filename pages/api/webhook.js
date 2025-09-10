@@ -544,9 +544,15 @@ export default async function handler(req, res) {
       // Comando de prueba para verificar miembros activos del grupo
       commandProcessed = true;
       try {
-        await sendMessage(chatId, `🔍 Verificando miembros activos del grupo... ${MoeHandler.getRandomKaomoji()}`, "HTML");
+        await sendMessage(
+          chatId,
+          `🔍 Verificando miembros activos del grupo... ${MoeHandler.getRandomKaomoji()}`,
+          "HTML",
+        );
 
-        const { getActiveTeamMembers } = await import("@/lib/services/taskManager");
+        const { getActiveTeamMembers } = await import(
+          "@/lib/services/taskManager"
+        );
         const activeMembers = await getActiveTeamMembers(chatId);
 
         if (activeMembers && activeMembers.length > 0) {
@@ -563,20 +569,28 @@ export default async function handler(req, res) {
 
           // Verificar si Claudia está excluida correctamente
           const claudiaId = parseInt(process.env.USER_ID_CLAUDIA || "0");
-          const claudiaInList = activeMembers.find(m => m.id === claudiaId);
+          const claudiaInList = activeMembers.find((m) => m.id === claudiaId);
           if (claudiaInList) {
-            membersText += `\n⚠️ ${bold("Advertencia:"))} Claudia aparece en la lista pero debería estar excluida.`;
+            membersText += `\n⚠️ ${bold("Advertencia:")} Claudia aparece en la lista pero debería estar excluida.`;
           } else if (claudiaId !== 0) {
             membersText += `\n✅ ${bold("Confirmado:")} Claudia está correctamente excluida de las asignaciones.`;
           }
 
           await sendMessage(chatId, membersText, "HTML");
         } else {
-          await sendMessage(chatId, `❌ No se pudieron obtener los miembros activos del grupo. ${MoeHandler.getRandomKaomoji()}`, "HTML");
+          await sendMessage(
+            chatId,
+            `❌ No se pudieron obtener los miembros activos del grupo. ${MoeHandler.getRandomKaomoji()}`,
+            "HTML",
+          );
         }
       } catch (error) {
         console.error("Error en comando /miembros:", error);
-        await sendMessage(chatId, `⚠️ Error al verificar los miembros: ${escapeHTML(error.message)}`, "HTML");
+        await sendMessage(
+          chatId,
+          `⚠️ Error al verificar los miembros: ${escapeHTML(error.message)}`,
+          "HTML",
+        );
       }
     } else if (text.startsWith("/add_sticker")) {
       commandProcessed = true;
