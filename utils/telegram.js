@@ -449,27 +449,64 @@ export async function getChatAdministrators(chatId) {
 // Lista de miembros adicionales registrados para recibir tareas
 // Estos son usuarios que no son administradores pero pueden recibir tareas
 // Para obtener el ID de un usuario, puedes usar el comando /info en el chat
-const REGISTERED_MEMBERS = [
-  // Ejemplo de formato para agregar usuarios:
-  // { id: 123456789, first_name: "Nombre", username: "username" },
-  // { id: 987654321, first_name: "Otro Usuario", username: "otro_user" },
-  // IMPORTANTE: Para agregar nuevos miembros:
-  // 1. Obtén el user_id usando el comando /info del bot
-  // 2. Agrega el usuario aquí siguiendo el formato anterior
-  // 3. Reinicia la aplicación para que los cambios tomen efecto
+// IDs de usuarios registrados - sus nombres reales se obtendrán automáticamente
+const REGISTERED_USER_IDS = [
+  6338282245, // @Luke_1606
+  5756622788, // @Eldenmaster
+  1149432007, // @MadaraXD
+  6134558583, // @Khaylene
+  1068057978, // @patricialdv
+  991216025, // @NakataYuu
 ];
 
-// Función para agregar un miembro registrado manualmente (para desarrollo/testing)
-export function addRegisteredMember(userId, firstName, username = null) {
-  const member = { id: userId, first_name: firstName, username };
-  REGISTERED_MEMBERS.push(member);
-  console.log(`Miembro registrado manualmente: ${firstName} (${userId})`);
-  return member;
+// Cache para almacenar la información de usuarios obtenida
+const MEMBERS_CACHE = new Map();
+
+// Función para obtener información real de un usuario registrado
+async function getRegisteredMemberInfo(chatId, userId) {
+  // Verificar cache primero
+  const cacheKey = `${chatId}_${userId}`;
+  if (MEMBERS_CACHE.has(cacheKey)) {
+    return MEMBERS_CACHE.get(cacheKey);
+  }
+
+  try {
+    const memberInfo = await getChatMember(chatId, userId);
+    if (memberInfo && memberInfo.user && !memberInfo.user.is_bot) {
+      const member = {
+        id: memberInfo.user.id,
+        first_name: memberInfo.user.first_name,
+        username: memberInfo.user.username || null,
+        status: memberInfo.status,
+        is_admin: false,
+      };
+
+      // Guardar en cache
+      MEMBERS_CACHE.set(cacheKey, member);
+      return member;
+    }
+  } catch (error) {
+    console.warn(
+      `No se pudo obtener info del usuario ${userId} en chat ${chatId}:`,
+      error.message,
+    );
+  }
+
+  return null;
 }
 
-// Función para obtener la lista actual de miembros registrados
-export function getRegisteredMembers() {
-  return [...REGISTERED_MEMBERS];
+// Función para agregar un miembro registrado manualmente (para desarrollo/testing)
+export function addRegisteredMember(userId) {
+  if (!REGISTERED_USER_IDS.includes(userId)) {
+    REGISTERED_USER_IDS.push(userId);
+    console.log(`Usuario registrado manualmente: ${userId}`);
+  }
+  return userId;
+}
+
+// Función para obtener la lista actual de IDs registrados
+export function getRegisteredMemberIds() {
+  return [...REGISTERED_USER_IDS];
 }
 
 // Nueva función para obtener todos los miembros disponibles (administradores + registrados)
@@ -494,17 +531,16 @@ export async function getAllAvailableMembers(chatId, excludeUserId = null) {
       }
     });
 
-    // Agregar miembros registrados (si no están ya en la lista de admins)
-    REGISTERED_MEMBERS.forEach((member) => {
-      const alreadyExists = allMembers.find((m) => m.id === member.id);
+    // Agregar miembros registrados obteniendo su información real de Telegram
+    for (const userId of REGISTERED_USER_IDS) {
+      const alreadyExists = allMembers.find((m) => m.id === userId);
       if (!alreadyExists) {
-        allMembers.push({
-          ...member,
-          status: "member",
-          is_admin: false,
-        });
+        const memberInfo = await getRegisteredMemberInfo(chatId, userId);
+        if (memberInfo) {
+          allMembers.push(memberInfo);
+        }
       }
-    });
+    }
 
     // Filtrar usuario excluido (como Claudia) si se especifica
     const filteredMembers = excludeUserId

@@ -193,6 +193,17 @@ export default async function handler(req, res) {
   const userId = messageObject.from.id;
   const userFirstName = messageObject.from.first_name || "Usuario";
 
+  // TEMPORAL: Logging para obtener IDs de usuarios
+  if (messageObject.from && !messageObject.from.is_bot) {
+    console.log(`🔍 Usuario detectado:`, {
+      id: messageObject.from.id,
+      first_name: messageObject.from.first_name,
+      username: messageObject.from.username || "sin_username",
+      chat_type: messageObject.chat.type,
+      chat_id: messageObject.chat.id,
+    });
+  }
+
   if (
     messageObject.chat.type === "group" ||
     messageObject.chat.type === "supergroup"
