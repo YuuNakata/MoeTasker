@@ -590,15 +590,6 @@ export default async function handler(req, res) {
 
           membersText += `\n✨ Total: ${bold(activeMembers.length.toString())} miembros disponibles para asignación de tareas.`;
 
-          // Verificar si Claudia está excluida correctamente
-          const claudiaId = parseInt(process.env.USER_ID_CLAUDIA || "0");
-          const claudiaInList = activeMembers.find((m) => m.id === claudiaId);
-          if (claudiaInList) {
-            membersText += `\n⚠️ ${bold("Advertencia:")} Claudia aparece en la lista pero debería estar excluida.`;
-          } else if (claudiaId !== 0) {
-            membersText += `\n✅ ${bold("Confirmado:")} Claudia está correctamente excluida de las asignaciones.`;
-          }
-
           await sendMessage(chatId, membersText, "HTML");
         } else {
           let errorMessage = `❌ No se pudieron obtener los miembros activos del grupo`;
@@ -635,7 +626,7 @@ export default async function handler(req, res) {
 
         // ID de Claudia
         const claudiaId = process.env.USER_ID_CLAUDIA || "No configurado";
-        configText += `👤 ${bold("Claudia ID (excluida de tareas):")} ${code(claudiaId)}\n\n`;
+        configText += `👤 ${bold("Claudia ID:")} ${code(claudiaId)}\n\n`;
 
         // Estado del chat actual
         const currentChatType = messageObject.chat.type;
@@ -653,7 +644,6 @@ export default async function handler(req, res) {
 
         configText += `\n🔧 ${bold("Estado del Sistema:")}\n`;
         configText += `- Detección dinámica de miembros: ✅ Activa\n`;
-        configText += `- Exclusión de Claudia: ${claudiaId !== "No configurado" ? "✅ Configurada" : "⚠️ No configurada"}\n`;
         configText += `- Grupo objetivo: ${targetGroupId !== "No configurado" ? "✅ Configurado" : "⚠️ No configurado"}\n`;
 
         await sendMessage(chatId, configText, "HTML");
