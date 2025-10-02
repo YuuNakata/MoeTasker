@@ -14,13 +14,16 @@ import {
 import * as TaskManager from "@/lib/services/taskManager";
 import * as MoeHandler from "@/lib/services/moeHandler";
 import * as OracleManager from "@/lib/services/oracleManager";
-import * as StickerManager from "@/lib/services/stickerManager"; // Added import
-import * as GitHubStatsService from "@/lib/services/gitHubStatsService"; // Nueva importación
+import * as StickerManager from "@/lib/services/stickerManager";
+import * as GitHubStatsService from "@/lib/services/gitHubStatsService";
+import * as MemberService from "@/lib/services/memberService";
 import { query } from "@/lib/db";
 import { randomBytes } from "crypto";
 import { escapeHTML, bold, italic, code } from "@/lib/utils/htmlEscaper";
 import { getAiResponse, getVisionResponse } from "@/pages/api/chat";
-import { getMemberById } from "@/lib/services/teamManager";
+import { initializeDatabase } from "@/lib/services/initDatabase";
+import { initializeCommandSystem } from "@/lib/commands/registerCommands";
+import { processCommand } from "@/lib/middleware/commandHandler";
 
 export const config = {
   maxDuration: 60,
@@ -35,7 +38,24 @@ function generateSuggestionKey() {
   return randomBytes(8).toString("hex"); // Genera 16 caracteres hexadecimales
 }
 
+// Global initialization flag
+let systemInitialized = false;
+
 export default async function handler(req, res) {
+  // Initialize system once on first request
+  if (!systemInitialized) {
+    console.log("🚀 Initializing MoeTasker system...");
+    try {
+      await initializeDatabase();
+      await initializeCommandSystem();
+      systemInitialized = true;
+      console.log("✅ System initialized successfully!");
+    } catch (error) {
+      console.error("❌ System initialization failed:", error);
+      // Continue anyway, but log the error
+    }
+  }
+
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).send("Method Not Allowed");
@@ -157,9 +177,11 @@ export default async function handler(req, res) {
         try {
           const welcomePrompt = `Un nuevo miembro llamado "${member.first_name}" se ha unido al grupo de desarrollo. Genera un mensaje de bienvenida cálido y amigable para darle la bienvenida al equipo. Hazlo único y especial, pero mantén tu personalidad anime. Incluye su nombre en el mensaje. Hazlo en una sola línea, máximo 2 oraciones.`;
 
-          const aiWelcomeMessage = await getAiResponse([
-            { role: "user", content: welcomePrompt },
-          ]);
+          const aiWelcomeMessage = await getAiResponse(
+            [{ role: "user", content: welcomePrompt }],
+            null,
+            chatId,
+          );
 
           if (aiWelcomeMessage && aiWelcomeMessage.trim()) {
             // Escapar el mensaje para MarkdownV2
@@ -262,6 +284,20 @@ export default async function handler(req, res) {
   }
 
   try {
+    // ============================================
+    // NEW COMMAND SYSTEM - Process registered commands first
+    // ============================================
+    if (text && text.startsWith("/")) {
+      const commandResult = await processCommand(messageObject);
+      if (commandResult.handled) {
+        commandProcessed = true;
+        return res.status(200).send("OK");
+      }
+    }
+
+    // ============================================
+    // LEGACY COMMANDS - Keep for backward compatibility
+    // ============================================
     if (text.startsWith("/start") || text.startsWith("/help")) {
       const helpText = MoeHandler.getHelpMessage(userFirstName);
       await sendMessage(chatId, helpText, "HTML");
@@ -815,8 +851,15 @@ export default async function handler(req, res) {
           await sendChatAction(chatId);
 
           // 4. Identificar al usuario y llamar a la lógica de la IA
-          const speakingUser = getMemberById(userId);
-          const aiText = await getAiResponse(formattedMessages, speakingUser);
+          const speakingUser = await MemberService.getMemberById(
+            chatId,
+            userId,
+          );
+          const aiText = await getAiResponse(
+            formattedMessages,
+            speakingUser,
+            chatId,
+          );
 
           if (aiText) {
             // 4. Escapar el texto para MarkdownV2, pero ignorando los bloques de código.
@@ -837,9 +880,11 @@ export default async function handler(req, res) {
               if (Math.random() < 0.75) {
                 const stickerPrompt = `Analiza el siguiente texto y extrae un máximo de 2 palabras clave que representen el concepto o la emoción más importante. Prioriza sustantivos o adjetivos específicos y únicos. Evita palabras comunes o genéricas. Devuelve solo las palabras separadas por comas. Texto: "${aiText}"`;
 
-                const categoriesText = await getAiResponse([
-                  { role: "user", content: stickerPrompt },
-                ]);
+                const categoriesText = await getAiResponse(
+                  [{ role: "user", content: stickerPrompt }],
+                  null,
+                  chatId,
+                );
 
                 if (categoriesText) {
                   const categories = categoriesText
