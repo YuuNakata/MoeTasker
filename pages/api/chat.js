@@ -1,12 +1,12 @@
 import { getRandomKaomoji, kaomojis } from "@/lib/services/moeHandler";
 import { getTeamDescriptionForPrompt } from "@/lib/services/teamManager";
 import { StreamingTextResponse } from "ai";
-import Groq from "groq-sdk";
+import Cerebras from "@cerebras/cerebras_cloud_sdk";
 
 export const runtime = "edge";
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
+const cerebras = new Cerebras({
+  apiKey: process.env.CEREBRAS_API_KEY,
 });
 
 /**
@@ -46,13 +46,13 @@ function generateSystemPrompt(speakingUser = null) {
 }
 
 /**
- * Esta es la lógica principal que se comunica con la IA de Groq.
+ * Esta es la lógica principal que se comunica con la IA de Cerebras.
  * La exportamos para poder llamarla directamente desde otros archivos del servidor.
  */
 export async function getVisionResponse(imageUrl, userPrompt) {
   try {
-    const response = await groq.chat.completions.create({
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+    const response = await cerebras.chat.completions.create({
+      model: "llama-4-scout-17b-16e-instruct",
       messages: [
         {
           role: "user",
@@ -74,7 +74,7 @@ export async function getVisionResponse(imageUrl, userPrompt) {
     });
     return response.choices[0]?.message?.content || "";
   } catch (error) {
-    console.error("Error getting vision response from Groq:", error);
+    console.error("Error getting vision response from Cerebras:", error);
     return "Uguu~ Mis ojitos mágicos no funcionan bien ahora mismo, gomenasai.";
   }
 }
@@ -83,8 +83,8 @@ export async function getAiResponse(messages, speakingUser = null) {
   const systemPrompt = generateSystemPrompt(speakingUser);
 
   try {
-    const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+    const response = await cerebras.chat.completions.create({
+      model: "llama-4-scout-17b-16e-instruct",
       // No usaremos stream aquí para obtener el texto completo directamente
       stream: false,
       messages: [systemPrompt, ...messages],
@@ -92,7 +92,7 @@ export async function getAiResponse(messages, speakingUser = null) {
 
     return response.choices[0]?.message?.content || "";
   } catch (error) {
-    console.error("Error en la API de Groq:", error);
+    console.error("Error en la API de Cerebras:", error);
     return "¡Gomen, senpai! Mis circuitos están un poco revueltos ahora mismo... (´；ω；`)";
   }
 }
@@ -108,15 +108,15 @@ export default async function handler(req) {
   const systemPrompt = generateSystemPrompt(null);
 
   try {
-    const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+    const response = await cerebras.chat.completions.create({
+      model: "llama-4-scout-17b-16e-instruct",
       stream: true,
       messages: [systemPrompt, ...messages],
     });
     const stream = response.toReadableStream();
     return new StreamingTextResponse(stream);
   } catch (error) {
-    console.error("Error en la API de Groq:", error);
+    console.error("Error en la API de Cerebras:", error);
     return new Response("Error con la IA", { status: 500 });
   }
 }
