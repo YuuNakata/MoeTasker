@@ -1,5 +1,5 @@
 import { getRandomKaomoji, kaomojis } from "@/lib/services/moeHandler";
-import { getCommandsForAIPrompt } from "@/lib/services/commandRegistry";
+import { getCommandsArray } from "@/lib/services/commandRegistry";
 import { StreamingTextResponse } from "ai";
 import Cerebras from "@cerebras/cerebras_cloud_sdk";
 import {
@@ -25,7 +25,7 @@ const cerebras = new Cerebras({
  * @returns {Promise<Object>} El objeto del prompt del sistema.
  */
 async function generateSystemPrompt(speakingUser = null, chatId = null) {
-  const commandsList = getCommandsForAIPrompt();
+  const commandsList = getCommandsArray();
 
   // Usar el nuevo sistema de AI Actions
   const aiActionsPrompt = generateAIActionsPrompt({
