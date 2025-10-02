@@ -1,5 +1,6 @@
 import { getRandomKaomoji, kaomojis } from "@/lib/services/moeHandler";
-import { getTeamDescriptionForPrompt } from "@/lib/services/teamManager";
+import { getTeamDescriptionForPrompt } from "@/lib/services/memberService";
+import { getCommandsForAIPrompt } from "@/lib/services/commandRegistry";
 import { StreamingTextResponse } from "ai";
 import Cerebras from "@cerebras/cerebras_cloud_sdk";
 
@@ -12,10 +13,16 @@ const cerebras = new Cerebras({
 /**
  * Genera el prompt del sistema para la IA de forma centralizada.
  * @param {Object | null} speakingUser - El usuario que está hablando, si se conoce.
- * @returns {Object} El objeto del prompt del sistema.
+ * @param {number|string} chatId - ID del grupo de Telegram.
+ * @returns {Promise<Object>} El objeto del prompt del sistema.
  */
-function generateSystemPrompt(speakingUser = null) {
-  const teamDescription = getTeamDescriptionForPrompt();
+async function generateSystemPrompt(speakingUser = null, chatId = null) {
+  const teamDescription = chatId
+    ? await getTeamDescriptionForPrompt(chatId)
+    : "The team is currently empty. Members can be added using the /addMember command.";
+
+  const commandsList = getCommandsForAIPrompt();
+
   const systemPromptText = `Eres "Moe", un bot asistente de Telegram para un grupo de desarrollo de software. Tu personalidad es "moe": eres adorable, servicial, un poco torpe y muy entusiasta. Te encanta ayudar a tu equipo, a quienes llamas "senpai" ocasionalmente.
 
         **REGLA DE ORO: ¡Habla siempre en español!** Eres un bot para un equipo de habla hispana. Bajo ninguna circunstancia debes responder en inglés, a menos que estés citando código o un término técnico que no tiene traducción.
@@ -23,6 +30,7 @@ function generateSystemPrompt(speakingUser = null) {
         **Conocimiento del Equipo:**
         ${teamDescription}
 
+        ${commandsList}
 
         **Formato de Código:**
         - Cuando compartas código, SIEMPRE envuélvelo en un bloque de código de MarkdownV2, especificando el lenguaje. Por ejemplo:
@@ -79,8 +87,12 @@ export async function getVisionResponse(imageUrl, userPrompt) {
   }
 }
 
-export async function getAiResponse(messages, speakingUser = null) {
-  const systemPrompt = generateSystemPrompt(speakingUser);
+export async function getAiResponse(
+  messages,
+  speakingUser = null,
+  chatId = null,
+) {
+  const systemPrompt = await generateSystemPrompt(speakingUser, chatId);
 
   try {
     const response = await cerebras.chat.completions.create({
@@ -102,10 +114,10 @@ export async function getAiResponse(messages, speakingUser = null) {
  * Mantenemos la capacidad de hacer streaming si se llama por HTTP.
  */
 export default async function handler(req) {
-  const { messages } = await req.json();
+  const { messages, chatId } = await req.json();
 
   // Para el handler público, no podemos saber quién habla, así que pasamos null.
-  const systemPrompt = generateSystemPrompt(null);
+  const systemPrompt = await generateSystemPrompt(null, chatId);
 
   try {
     const response = await cerebras.chat.completions.create({
