@@ -4,7 +4,11 @@ import { getCommandsForAIPrompt } from "@/lib/services/commandRegistry";
 import { StreamingTextResponse } from "ai";
 import Cerebras from "@cerebras/cerebras_cloud_sdk";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
+
+export const config = {
+  maxDuration: 60,
+};
 
 const cerebras = new Cerebras({
   apiKey: process.env.CEREBRAS_API_KEY,
