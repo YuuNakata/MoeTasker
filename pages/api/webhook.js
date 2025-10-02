@@ -287,7 +287,7 @@ export default async function handler(req, res) {
     // ============================================
     // NEW COMMAND SYSTEM - Process registered commands first
     // ============================================
-    if (text && text.startsWith("/")) {
+    if (text) {
       const commandResult = await processCommand(messageObject);
       if (commandResult.handled) {
         commandProcessed = true;

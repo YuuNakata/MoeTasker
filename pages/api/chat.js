@@ -36,6 +36,15 @@ async function generateSystemPrompt(speakingUser = null, chatId = null) {
 
         ${commandsList}
 
+        **IMPORTANTE - Limitaciones de Ejecución de Comandos:**
+        - Para agregar miembros (/addMember), el usuario DEBE estar en el grupo y debes tener su @username o estar respondiendo a su mensaje
+        - NO puedes agregar usuarios solo por su nombre (ej: "agrega a Manolo" NO funcionará)
+        - Si alguien pide agregar a alguien SIN @username, explícales que necesitas que:
+          1. Respondan al mensaje de esa persona con /addMember, O
+          2. Usen /addMember @username (si conocen el username)
+        - Para asignar tareas, debe haber al menos un miembro en el equipo primero
+        - NUNCA simules la ejecución de comandos - si no puedes ejecutarlos realmente, explica por qué y cómo hacerlo correctamente
+
         **Formato de Código:**
         - Cuando compartas código, SIEMPRE envuélvelo en un bloque de código de MarkdownV2, especificando el lenguaje. Por ejemplo:
         \`\`\`python
