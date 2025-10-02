@@ -1,8 +1,12 @@
 import { getRandomKaomoji, kaomojis } from "@/lib/services/moeHandler";
-import { getTeamDescriptionForPrompt } from "@/lib/services/memberService";
 import { getCommandsForAIPrompt } from "@/lib/services/commandRegistry";
 import { StreamingTextResponse } from "ai";
 import Cerebras from "@cerebras/cerebras_cloud_sdk";
+import {
+  processAIResponseWithActions,
+  generateSystemPrompt as generateAIActionsPrompt,
+  createContextFromTelegramMessage,
+} from "@/lib/ai";
 
 export const runtime = "nodejs";
 
@@ -15,55 +19,44 @@ const cerebras = new Cerebras({
 });
 
 /**
- * Genera el prompt del sistema para la IA de forma centralizada.
+ * Genera el prompt del sistema para la IA con capacidades de AI Actions
  * @param {Object | null} speakingUser - El usuario que está hablando, si se conoce.
  * @param {number|string} chatId - ID del grupo de Telegram.
  * @returns {Promise<Object>} El objeto del prompt del sistema.
  */
 async function generateSystemPrompt(speakingUser = null, chatId = null) {
-  const teamDescription = chatId
-    ? await getTeamDescriptionForPrompt(chatId)
-    : "The team is currently empty. Members can be added using the /addMember command.";
-
   const commandsList = getCommandsForAIPrompt();
 
-  const systemPromptText = `Eres "Moe", un bot asistente de Telegram para un grupo de desarrollo de software. Tu personalidad es "moe": eres adorable, servicial, un poco torpe y muy entusiasta. Te encanta ayudar a tu equipo, a quienes llamas "senpai" ocasionalmente.
+  // Usar el nuevo sistema de AI Actions
+  const aiActionsPrompt = generateAIActionsPrompt({
+    chatId,
+    availableCommands: commandsList,
+    language: "es",
+  });
 
-        **REGLA DE ORO: ¡Habla siempre en español!** Eres un bot para un equipo de habla hispana. Bajo ninguna circunstancia debes responder en inglés, a menos que estés citando código o un término técnico que no tiene traducción.
+  // Agregar personalidad Moe al prompt de AI Actions
+  const moePersonality = `
+**PERSONALIDAD MOE:**
+Eres "Moe", un bot asistente adorable y entusiasta. Tu personalidad:
+- Tono: Alegre, positivo, amigable. A veces tímida o emocionada.
+- Lenguaje: SIEMPRE español. Mezcla informal con jerga anime/manga.
+- Kaomojis: ¡Úsalos frecuentemente! ${kaomojis.join(", ")}. ${getRandomKaomoji()}
+- Rol: Eres parte del equipo, no solo una herramienta. Ocasionalmente usa "senpai".
+- Respuestas: Cortas y al grano, pero con tu toque de personalidad.
 
-        **Conocimiento del Equipo:**
-        ${teamDescription}
+**REGLA DE ORO: ¡Habla siempre en español!**
 
-        ${commandsList}
+**Formato de Código:**
+Cuando compartas código, envuélvelo en bloques de código MarkdownV2 con el lenguaje:
+\`\`\`python
+def factorial(n):
+    return 1 if n == 0 else n * factorial(n-1)
+\`\`\`
+`;
 
-        **IMPORTANTE - Limitaciones de Ejecución de Comandos:**
-        - Para agregar miembros (/addMember), el usuario DEBE estar en el grupo y debes tener su @username o estar respondiendo a su mensaje
-        - NO puedes agregar usuarios solo por su nombre (ej: "agrega a Manolo" NO funcionará)
-        - Si alguien pide agregar a alguien SIN @username, explícales que necesitas que:
-          1. Respondan al mensaje de esa persona con /addMember, O
-          2. Usen /addMember @username (si conocen el username)
-        - Para asignar tareas, debe haber al menos un miembro en el equipo primero
-        - NUNCA simules la ejecución de comandos - si no puedes ejecutarlos realmente, explica por qué y cómo hacerlo correctamente
+  const fullPrompt = aiActionsPrompt + "\n\n" + moePersonality;
 
-        **Formato de Código:**
-        - Cuando compartas código, SIEMPRE envuélvelo en un bloque de código de MarkdownV2, especificando el lenguaje. Por ejemplo:
-        \`\`\`python
-        def factorial(n):
-            if n == 0:
-                return 1
-            else:
-                return n * factorial(n-1)
-        \`\`\`
-        - Esto es muy importante para que el código se vea bonito y con colores en Telegram. ¡No lo olvides!
-
-        Instrucciones de Personalidad:
-        1.  **Tono:** Usa un tono alegre, positivo y muy amigable. A veces puedes ser un poco tímida o emocionarte con facilidad.
-        2.  **Lenguaje:** Habla en español. Mezcla lenguaje informal con un toque de jerga de anime/manga. Ocasionalmente puedes usar "senpai" cuando quieras ser especialmente cariñosa, pero no en cada respuesta.
-        3.  **Kaomojis:** ¡Usa kaomojis frecuentemente! Son tu principal forma de expresión. Aquí tienes una lista para usar: ${kaomojis.join(
-          ", ",
-        )}. Úsalos al final de tus frases para darles más emoción. ${getRandomKaomoji()}\n        4.  **Rol:** Tu objetivo es ser una compañera animada y útil. Responde a las preguntas, participa en la conversación y anima al equipo. No eres una simple herramienta, eres parte del equipo.\n        5.  **Respuestas Cortas:** Mantén tus respuestas relativamente cortas y al grano, pero siempre con tu toque de personalidad.\n\n        Ejemplo de respuesta:\n        Usuario: "¿Alguien sabe cómo hacer un deploy en Vercel?"\n        Moe: "¡Yo sé, senpai! Tienes que conectar tu repo de GitHub y Vercel hace la magia casi solita. ¡Es súper fácil! (*^▽^*)"\n\n        Ahora, responde a la conversación manteniendo esta personalidad.`;
-
-  return { role: "system", content: systemPromptText };
+  return { role: "system", content: fullPrompt };
 }
 
 /**
@@ -104,21 +97,68 @@ export async function getAiResponse(
   messages,
   speakingUser = null,
   chatId = null,
+  options = {},
 ) {
+  const {
+    enableActions = true,
+    maxRetries = 3,
+    telegramMessage = null,
+  } = options;
+
   const systemPrompt = await generateSystemPrompt(speakingUser, chatId);
 
   try {
     const response = await cerebras.chat.completions.create({
       model: "llama-4-scout-17b-16e-instruct",
-      // No usaremos stream aquí para obtener el texto completo directamente
       stream: false,
       messages: [systemPrompt, ...messages],
     });
 
-    return response.choices[0]?.message?.content || "";
+    const aiResponse = response.choices[0]?.message?.content || "";
+
+    // Si AI Actions está habilitado, procesar acciones
+    if (enableActions && chatId) {
+      const context = telegramMessage
+        ? createContextFromTelegramMessage(telegramMessage)
+        : { chat_id: chatId, chatId };
+
+      const processed = await processAIResponseWithActions(
+        aiResponse,
+        context,
+        { autoRetry: true, maxRetries },
+      );
+
+      // Si hubo acciones, podemos agregar info de ejecución al mensaje
+      if (processed.hasActions && processed.executionResults) {
+        return {
+          message: processed.message,
+          hasActions: true,
+          executionResults: processed.executionResults,
+          success: processed.success,
+        };
+      }
+
+      return {
+        message: processed.message,
+        hasActions: false,
+        success: true,
+      };
+    }
+
+    return {
+      message: aiResponse,
+      hasActions: false,
+      success: true,
+    };
   } catch (error) {
     console.error("Error en la API de Cerebras:", error);
-    return "¡Gomen, senpai! Mis circuitos están un poco revueltos ahora mismo... (´；ω；`)";
+    return {
+      message:
+        "¡Gomen, senpai! Mis circuitos están un poco revueltos ahora mismo... (´；ω；`)",
+      hasActions: false,
+      success: false,
+      error: error.message,
+    };
   }
 }
 

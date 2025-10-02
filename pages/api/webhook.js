@@ -177,11 +177,15 @@ export default async function handler(req, res) {
         try {
           const welcomePrompt = `Un nuevo miembro llamado "${member.first_name}" se ha unido al grupo de desarrollo. Genera un mensaje de bienvenida cálido y amigable para darle la bienvenida al equipo. Hazlo único y especial, pero mantén tu personalidad anime. Incluye su nombre en el mensaje. Hazlo en una sola línea, máximo 2 oraciones.`;
 
-          const aiWelcomeMessage = await getAiResponse(
+          const aiWelcomeResponse = await getAiResponse(
             [{ role: "user", content: welcomePrompt }],
             null,
             chatId,
+            { enableActions: false }, // No actions for welcome messages
           );
+
+          const aiWelcomeMessage =
+            aiWelcomeResponse?.message || aiWelcomeResponse;
 
           if (aiWelcomeMessage && aiWelcomeMessage.trim()) {
             // Escapar el mensaje para MarkdownV2
@@ -855,11 +859,20 @@ export default async function handler(req, res) {
             chatId,
             userId,
           );
-          const aiText = await getAiResponse(
+          const aiResponse = await getAiResponse(
             formattedMessages,
             speakingUser,
             chatId,
+            { enableActions: true, telegramMessage: messageObject },
           );
+
+          // Extract message from response
+          const aiText = aiResponse?.message || aiResponse;
+
+          // Log action execution results if any
+          if (aiResponse?.hasActions && aiResponse?.executionResults) {
+            console.log("✨ AI Actions executed:", aiResponse.executionResults);
+          }
 
           if (aiText) {
             // 4. Escapar el texto para MarkdownV2, pero ignorando los bloques de código.
@@ -880,11 +893,15 @@ export default async function handler(req, res) {
               if (Math.random() < 0.75) {
                 const stickerPrompt = `Analiza el siguiente texto y extrae un máximo de 2 palabras clave que representen el concepto o la emoción más importante. Prioriza sustantivos o adjetivos específicos y únicos. Evita palabras comunes o genéricas. Devuelve solo las palabras separadas por comas. Texto: "${aiText}"`;
 
-                const categoriesText = await getAiResponse(
+                const categoriesResponse = await getAiResponse(
                   [{ role: "user", content: stickerPrompt }],
                   null,
                   chatId,
+                  { enableActions: false }, // No actions for sticker selection
                 );
+
+                const categoriesText =
+                  categoriesResponse?.message || categoriesResponse;
 
                 if (categoriesText) {
                   const categories = categoriesText
