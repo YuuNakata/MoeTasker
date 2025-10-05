@@ -7,6 +7,7 @@ import {
   generateSystemPrompt as generateAIActionsPrompt,
   createContextFromTelegramMessage,
 } from "@/lib/ai";
+import { executeIteratively } from "@/lib/ai/iterativeExecutor";
 
 export const runtime = "nodejs";
 
@@ -103,7 +104,7 @@ export async function getAiResponse(
     enableActions = true,
     maxRetries = 3,
     telegramMessage = null,
-    secondPass = true, // Enable second pass for data-driven responses
+    useIterative = true, // Enable iterative execution
   } = options;
 
   const systemPrompt = await generateSystemPrompt(speakingUser, chatId);
@@ -123,47 +124,40 @@ export async function getAiResponse(
         ? createContextFromTelegramMessage(telegramMessage)
         : { chat_id: chatId, chatId };
 
+      // Usar ejecución iterativa si está habilitada
+      if (useIterative) {
+        console.log("🔄 Using iterative execution...");
+
+        const iterativeResult = await executeIteratively(
+          aiResponse,
+          context,
+          systemPrompt,
+          messages,
+        );
+
+        return {
+          message: iterativeResult.message,
+          hasActions: iterativeResult.totalActionsExecuted > 0,
+          executionResults: iterativeResult.allExecutionResults,
+          success: iterativeResult.success,
+          iterations: iterativeResult.iterations,
+          totalActionsExecuted: iterativeResult.totalActionsExecuted,
+          iterative: true,
+        };
+      }
+
+      // Fallback a ejecución simple
       const processed = await processAIResponseWithActions(
         aiResponse,
         context,
         { autoRetry: true, maxRetries },
       );
 
-      // Si hubo acciones Y están exitosas Y second pass está habilitado
-      if (processed.hasActions && processed.executionResults && secondPass) {
-        console.log("🔄 Generating second-pass response with actual data...");
-
-        // Generar respuesta final con los datos reales
-        const finalMessage = await generateDataDrivenResponse(
-          messages,
-          processed.executionResults,
-          systemPrompt,
-          context,
-        );
-
-        return {
-          message: finalMessage,
-          hasActions: true,
-          executionResults: processed.executionResults,
-          success: processed.success,
-          secondPass: true,
-        };
-      }
-
-      // Si hubo acciones pero sin second pass
-      if (processed.hasActions && processed.executionResults) {
-        return {
-          message: processed.message,
-          hasActions: true,
-          executionResults: processed.executionResults,
-          success: processed.success,
-        };
-      }
-
       return {
         message: processed.message,
-        hasActions: false,
-        success: true,
+        hasActions: processed.hasActions,
+        executionResults: processed.executionResults,
+        success: processed.success,
       };
     }
 
@@ -181,69 +175,6 @@ export async function getAiResponse(
       success: false,
       error: error.message,
     };
-  }
-}
-
-/**
- * Genera una respuesta basada en datos reales de las acciones ejecutadas
- */
-async function generateDataDrivenResponse(
-  originalMessages,
-  executionResults,
-  systemPrompt,
-  context,
-) {
-  // Formatear los resultados de las acciones para la IA
-  let resultsText = "**RESULTS OF YOUR ACTIONS:**\n\n";
-
-  executionResults.results.forEach((result, idx) => {
-    resultsText += `Action ${idx + 1} [${result.type}]:\n`;
-
-    if (result.type === "sql" && result.result.rows) {
-      resultsText += `✅ Query executed successfully\n`;
-      resultsText += `Rows returned: ${result.result.rows.length}\n`;
-      if (result.result.rows.length > 0) {
-        resultsText += `Data:\n${JSON.stringify(result.result.rows, null, 2)}\n`;
-      } else {
-        resultsText += `No data found.\n`;
-      }
-    } else if (result.type === "memory") {
-      resultsText += `✅ Memory operation completed\n`;
-      resultsText += `Result: ${JSON.stringify(result.result, null, 2)}\n`;
-    } else if (result.type === "telegram") {
-      resultsText += `✅ Telegram action completed\n`;
-    }
-    resultsText += `\n`;
-  });
-
-  if (executionResults.errors.length > 0) {
-    resultsText += "**ERRORS:**\n";
-    executionResults.errors.forEach((error, idx) => {
-      resultsText += `Error ${idx + 1}: ${error.error}\n`;
-    });
-  }
-
-  // Crear un nuevo mensaje con los resultados
-  const dataPrompt = {
-    role: "user",
-    content: `${resultsText}\n\nNow, based on the ACTUAL DATA above from your executed actions, generate a natural, conversational response for the user. Use the real data, don't invent or assume anything. Be specific and helpful.`,
-  };
-
-  try {
-    const finalResponse = await cerebras.chat.completions.create({
-      model: "llama-4-scout-17b-16e-instruct",
-      stream: false,
-      messages: [systemPrompt, ...originalMessages, dataPrompt],
-    });
-
-    return (
-      finalResponse.choices[0]?.message?.content ||
-      "No pude generar una respuesta con los datos."
-    );
-  } catch (error) {
-    console.error("Error in second-pass generation:", error);
-    // Fallback al mensaje original
-    return "Obtuve los datos pero tuve problemas procesándolos (•́ ω •̀)";
   }
 }
 
