@@ -81,15 +81,20 @@ async function sendSingleMessage(
       headers: { "Content-type": "application/json" },
       body: JSON.stringify(body),
     });
+
+    const jsonResponse = await response.json();
+
     if (!response.ok) {
       console.error(
         "Failed to send message to telegram user. Status:",
         response.status,
         "Body:",
-        await response.text(),
+        jsonResponse,
       );
+      return null;
     }
-    return response;
+
+    return jsonResponse.result; // Return the message object with message_id
   } catch (err) {
     console.error("Error occured while sending message to telegram user", err);
     return null;
