@@ -67,7 +67,7 @@ def factorial(n):
 export async function getVisionResponse(imageUrl, userPrompt) {
   try {
     const response = await cerebras.chat.completions.create({
-      model: "llama-4-scout-17b-16e-instruct",
+      model: "gpt-oss-120b",
       messages: [
         {
           role: "user",
@@ -111,7 +111,7 @@ export async function getAiResponse(
 
   try {
     const response = await cerebras.chat.completions.create({
-      model: "llama-4-scout-17b-16e-instruct",
+      model: "gpt-oss-120b",
       stream: false,
       messages: [systemPrompt, ...messages],
     });
@@ -190,7 +190,7 @@ export default async function handler(req) {
 
   try {
     const response = await cerebras.chat.completions.create({
-      model: "llama-4-scout-17b-16e-instruct",
+      model: "gpt-oss-120b",
       stream: true,
       messages: [systemPrompt, ...messages],
     });
